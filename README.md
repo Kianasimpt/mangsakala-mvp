@@ -73,6 +73,8 @@ cd mangsakala-mvp
 
 # Install dependencies (sekali saja)
 cd backend
+python -m venv venv
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\venv\Scripts\activate
 pip install -r requirements.txt
 cd ..
