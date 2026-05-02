@@ -65,6 +65,10 @@
     const _IDM = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
     const _MUSIM = {1:"Mareng",2:"Mareng",3:"Mareng",4:"Labuh",5:"Labuh",6:"Labuh",7:"Rendheng",8:"Rendheng",9:"Rendheng",10:"Mareng",11:"Mareng",12:"Mareng"};
     function _fd(s) { const p = s.split("-"); return `${parseInt(p[2])} ${_IDM[parseInt(p[1])-1]}`; }
+    const _ENSO_LBL = {"el_nino_weak":"El Nino Lemah","el_nino_moderate":"El Nino Moderat","el_nino_strong":"El Nino Kuat","la_nina_weak":"La Nina Lemah","la_nina_moderate":"La Nina Moderat","la_nina_strong":"La Nina Kuat","neutral":"Netral"};
+
+    let _notifPadi = { window: "28 Okt - 14 Nov", days: 7, note: "Siapkan persemaian dan cek air irigasi." };
+    let _notifEnso = { title: "ENSO · Memuat data...", body: "Menghubungi server untuk data iklim terkini." };
 
     /* tiny seeded sparkline values per mangsa (drift trend) */
     const SPARKS = {
@@ -233,7 +237,7 @@
       const [tab, setTab] = useState("notif");
       const [reminderOn, setReminderOn] = useState(true);
       const crops = [
-        { key: "padi", name: "Padi", window: "28 Okt - 14 Nov", days: 7, note: "Siapkan persemaian dan cek air irigasi.", tone: "terra" },
+        { key: "padi", name: "Padi", window: _notifPadi.window, days: _notifPadi.days, note: _notifPadi.note, tone: "terra" },
         { key: "jagung", name: "Jagung", window: "3 Nov - 18 Nov", days: 12, note: "Cocok setelah hujan awal stabil.", tone: "olive" },
         { key: "cabai", name: "Cabai", window: "24 Okt - 6 Nov", days: 3, note: "Perlu bedengan kering dan drainase baik.", tone: "amber" },
         { key: "kedelai", name: "Kedelai", window: "18 Nov - 2 Des", days: 21, note: "Masih cukup waktu untuk persiapan benih.", tone: "blue" },
@@ -247,7 +251,7 @@
           tag: dueSoon ? "Prioritas" : "Pantau",
         },
         { title: "Kalima sedang berlangsung", body: "Mangsa aktif cocok untuk mulai membaca tanda hujan awal.", tag: "Mangsa" },
-        { title: "ENSO El Nino lemah", body: "Onset hujan bisa mundur. Cocokkan lagi dengan data Iklim.", tag: "Iklim" },
+        { title: _notifEnso.title, body: _notifEnso.body, tag: "Iklim" },
       ];
       if (!open) return null;
       return (
@@ -754,10 +758,27 @@
             MANGSA.length = 0;
             MANGSA.push(...mapped);
             setActiveMangsaUi(data.current_mangsa.number);
+            // update notification padi window
+            const pw = data.recommended_planting.primary_window;
+            const today = new Date();
+            const daysUntil = Math.max(0, Math.round((new Date(pw.start) - today) / 86400000));
+            _notifPadi = { window: `${_fd(pw.start)} - ${_fd(pw.end)}`, days: daysUntil, note: "Siapkan persemaian dan cek air irigasi." };
             _setLoading(false);
             _setApiVer(v => v + 1);
           })
           .catch(() => { _setLoading(false); _setOffline(true); });
+        // fetch alert for ENSO notification
+        const yr = new Date().getFullYear();
+        fetch(`${API_BASE}/alert?year=${yr}&region=kebumen`)
+          .then(r => r.ok ? r.json() : null).catch(() => null)
+          .then(a => {
+            if (!a) return;
+            const phase = a.enso_context.current_phase;
+            _notifEnso = {
+              title: `ENSO ${_ENSO_LBL[phase] || phase}`,
+              body: `ONI ${a.enso_context.oni_value > 0 ? "+" : ""}${a.enso_context.oni_value.toFixed(1)}. ${a.enso_context.explanation || "Pantau prakiraan mingguan BMKG."}`,
+            };
+          });
       }, []);
 
       const appTheme = mangsaThemeStyle(activeMangsaUi);
