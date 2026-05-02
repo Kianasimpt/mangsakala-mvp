@@ -76,6 +76,11 @@ def _oni_val(year: int, col: str) -> float:
     return _oni_data.get(year, {}).get(col) or 0.0
 
 
+def _oni_val_raw(year: int, col: str) -> float | None:
+    """Return None if data is missing, not 0.0."""
+    return _oni_data.get(year, {}).get(col)
+
+
 def _oni_jjas_avg(year: int) -> float:
     """Average of JJA and JAS as proxy for Jun–Sep ENSO signal."""
     return (_oni_val(year, "JJA") + _oni_val(year, "JAS")) / 2.0
@@ -84,6 +89,21 @@ def _oni_jjas_avg(year: int) -> float:
 def _oni_lag3(year: int) -> float:
     """ONI 3 months before typical Oct onset → JAS window."""
     return _oni_val(year, "JAS")
+
+
+def _oni_most_recent(year: int) -> float:
+    """Most recently available ONI value for year or prior year.
+
+    Used for display context when JAS of the prediction year is not yet published.
+    Column order reflects recency relative to Oct onset window.
+    """
+    cols = ["JAS", "ASO", "JJA", "MJJ", "AMJ", "SON", "OND", "MAM", "NDJ", "FMA", "JFM", "DJF"]
+    for y in (year, year - 1):
+        for col in cols:
+            v = _oni_val_raw(y, col)
+            if v is not None:
+                return round(v, 2)
+    return 0.0
 
 
 def _pre_season_rain(year: int) -> float:
@@ -151,7 +171,7 @@ def predict_onset(year: int, region: str) -> dict:
     predicted_doy = int(round(float(_model.predict(X)[0])))
     predicted_doy = max(260, min(340, predicted_doy))
 
-    oni_repr = round(oni_l3, 2)
+    oni_repr = round(oni_l3, 2) if _oni_val_raw(year, "JAS") is not None else _oni_most_recent(year)
     onset_date = _doy_to_date(year, predicted_doy)
 
     logger.debug("predict_onset(%d, %s) → doy=%d date=%s features=%s",

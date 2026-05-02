@@ -12,7 +12,9 @@
   body {
     background: radial-gradient(ellipse at top, #2a1f15 0%, #160e08 80%);
     display: grid; place-items: center; padding: 24px; overflow: auto;
+    scrollbar-width: none;
   }
+  body::-webkit-scrollbar { display: none; }
   .stage { width: 402px; height: 874px; flex-shrink: 0; }
   @keyframes ensoPulse {
     0%, 100% { box-shadow: 0 0 0 3px rgba(200,85,61,0.18); }
@@ -36,7 +38,7 @@
   <script type="text/babel" src="mangsa-shared.jsx?v=9"></script>
   <script type="text/babel" data-presets="react">
     const { useState } = React;
-    const ACTIVE_MANGSA = 5;
+    let ACTIVE_MANGSA = 5;
 
     /* ── API connection ── */
     const API_BASE = window.API_BASE || "http://localhost:8000/api";
@@ -325,11 +327,18 @@
       const W = 370, H = 220;
       const pad = { l: 32, r: 12, t: 14, b: 28 };
       const x0 = 1995, x1 = 2025;
-      const y0 = -10, y1 = 30;
+      const _vals = DRIFT.map(([,v]) => v);
+      const _vMin = Math.min(..._vals);
+      const _vMax = Math.max(..._vals);
+      const _vPad = Math.max(5, Math.ceil((_vMax - _vMin) * 0.12));
+      const y0 = Math.min(-10, _vMin - _vPad);
+      const y1 = Math.max(30, _vMax + _vPad);
       const sx = (yr) => pad.l + ((yr - x0) / (x1 - x0)) * (W - pad.l - pad.r);
       const sy = (v)  => pad.t + (1 - (v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
 
-      const yTicks = [-10, 0, 10, 20, 30];
+      const _tickStep = (y1 - y0) > 60 ? 20 : 10;
+      const yTicks = [];
+      for (let _t = Math.ceil(y0 / _tickStep) * _tickStep; _t <= y1; _t += _tickStep) yTicks.push(_t);
       const xTicks = [1995, 2000, 2005, 2010, 2015, 2020, 2025];
 
       // smooth-ish polyline
@@ -462,9 +471,6 @@
             <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="#3E2F1C" strokeWidth="1.4"/>
             <text x={W - pad.r - 4} y={sy(0) - 4} textAnchor="end" fontSize="9" fontWeight="700" fill="#3E2F1C">BASELINE</text>
 
-            <text x={pad.l + 6} y={pad.t + 12} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#A8412C">Zona rawan</text>
-            <text x={pad.l + 6} y={sy(14) + 11} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#B1604B">Zona waspada</text>
-            <text x={pad.l + 6} y={H - pad.b - 8} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#8A7657">Zona aman</text>
 
             {/* x-axis labels */}
             {xTicks.map(t => (
@@ -518,6 +524,18 @@
                   )}
                 </g>
               ))}
+              {/* zone labels — on top of chart line */}
+              <g>
+                <rect x={pad.l + 3} y={pad.t + 3} width={63} height={13} rx="3" fill="#FFF7F3" opacity="0.9"/>
+                <text x={pad.l + 6} y={pad.t + 12} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#A8412C">Zona rawan</text>
+                {sy(14) + 18 < sy(0) - 2 && <>
+                  <rect x={pad.l + 3} y={sy(14) + 3} width={73} height={13} rx="3" fill="#FCE8E2" opacity="0.9"/>
+                  <text x={pad.l + 6} y={sy(14) + 12} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#B1604B">Zona waspada</text>
+                </>}
+                <rect x={pad.l + 3} y={H - pad.b - 16} width={59} height={13} rx="3" fill="#FFFCF7" opacity="0.9"/>
+                <text x={pad.l + 6} y={H - pad.b - 7} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#8A7657">Zona aman</text>
+              </g>
+
               {activePoint && (
                 <g className="chart-tooltip" transform={`translate(${Math.max(pad.l + 8, Math.min(activePoint.x - 48, W - pad.r - 100))}, ${Math.max(pad.t + 6, activePoint.y - 56)})`}>
                   <rect width="96" height="38" rx="11" ry="11" fill="#2A1F12" opacity="0.96"/>
@@ -801,7 +819,8 @@
         Promise.all([
           fetch(`${API_BASE}/drift?region=kebumen&start_year=1995&end_year=2025`).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`${API_BASE}/alert?year=${new Date().getFullYear()}&region=kebumen`).then(r => r.ok ? r.json() : null).catch(() => null),
-        ]).then(([driftData, alertData]) => {
+          fetch(`${API_BASE}/calendar?year=${new Date().getFullYear()}&region=kebumen`).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]).then(([driftData, alertData, calData]) => {
           if (driftData) {
             const mapped = driftData.data.map(d => [
               d.year, d.shift_days,
@@ -811,6 +830,7 @@
             DRIFT.push(...mapped);
           }
           if (alertData) _driftShift = Math.abs(alertData.shift_days);
+          if (calData) ACTIVE_MANGSA = calData.current_mangsa.number;
           _setLoading(false);
           _setApiVer(v => v + 1);
         }).catch(() => { _setLoading(false); _setOffline(true); });

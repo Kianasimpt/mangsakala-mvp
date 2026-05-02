@@ -13,7 +13,9 @@
   body {
     background: radial-gradient(ellipse at top, #2a1f15 0%, #160e08 80%);
     display: grid; place-items: center; padding: 24px; overflow: auto;
+    scrollbar-width: none;
   }
+  body::-webkit-scrollbar { display: none; }
   .stage { width: 402px; height: 874px; flex-shrink: 0; }
   /* tighter, more readable alert refinements */
   .ab-title { font-size: 17px; line-height: 1.18; }
@@ -36,7 +38,7 @@
   <script type="text/babel" src="mangsa-shared.jsx?v=9"></script>
   <script type="text/babel" data-presets="react">
     const { useState } = React;
-    const ACTIVE_MANGSA = 5;
+    let ACTIVE_MANGSA = 5;
 
     /* ── API connection ── */
     const API_BASE = window.API_BASE || "http://localhost:8000/api";
@@ -44,12 +46,20 @@
     function _fd(s) { const p = s.split("-"); return `${parseInt(p[2])} ${_IDM[parseInt(p[1])-1]}`; }
     const _ENSO_LBL = {"el_nino_weak":"El Nino Lemah","el_nino_moderate":"El Nino Sedang","el_nino_strong":"El Nino Kuat","la_nina_weak":"La Nina Lemah","la_nina_moderate":"La Nina Sedang","la_nina_strong":"La Nina Kuat","neutral":"Netral"};
     const _ENSO_SUB = {"el_nino_weak":"Fase pemanasan permukaan laut lemah","el_nino_moderate":"Fase pemanasan permukaan laut sedang","el_nino_strong":"Fase pemanasan permukaan laut kuat","la_nina_weak":"Fase pendinginan permukaan laut lemah","la_nina_moderate":"Fase pendinginan permukaan laut sedang","la_nina_strong":"Fase pendinginan permukaan laut kuat","neutral":"Kondisi ENSO normal"};
+    const _REGION_LABEL = { kebumen: "Kebumen, Jateng" };
+    const _REGION_IMPL  = { kebumen: "Kebumen, Jawa Tengah" };
+    function _updatedAgo(d) {
+      const diff = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (diff < 1) return "Baru saja";
+      if (diff < 60) return `${diff} menit lalu`;
+      return `${Math.floor(diff / 60)} jam lalu`;
+    }
 
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
       "severity": "high",
       "days": 13,
-      "location": "Sleman, DIY",
-      "updatedAgo": "2 jam lalu",
+      "location": "Kebumen, Jateng",
+      "updatedAgo": "Memuat...",
       "onset": "Kalima · 28 Okt",
       "bodyText": "Onset musim hujan tertunda dari kalender tradisional Pranata Mangsa. Tunda semai padi sampai jendela tanam adaptif.",
       "rec1": "Tunda semai padi 14 hari, gunakan jendela adaptif sistem.",
@@ -61,7 +71,7 @@
       "ensoSource": "NOAA · Apr 2026",
       "implMin": 10,
       "implMax": 25,
-      "implRegion": "Jawa Tengah & DIY"
+      "implRegion": "Kebumen, Jawa Tengah"
     }/*EDITMODE-END*/;
 
     /* ===== ICONS ===== */
@@ -474,26 +484,32 @@
       const appTheme = mangsaThemeStyle(activeMangsa);
 
       React.useEffect(() => {
-        fetch(`${API_BASE}/alert?year=${new Date().getFullYear()}&region=kebumen&threshold_days=14`)
-          .then(r => r.ok ? r.json() : Promise.reject())
-          .then(data => {
-            const phase = data.enso_context.current_phase;
-            const days = Math.abs(data.shift_days);
+        Promise.all([
+          fetch(`${API_BASE}/alert?year=${new Date().getFullYear()}&region=kebumen&threshold_days=14`).then(r => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/calendar?year=${new Date().getFullYear()}&region=kebumen`).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]).then(([alertData, calData]) => {
+            const phase = alertData.enso_context.current_phase;
+            const days = Math.abs(alertData.shift_days);
             const now = new Date();
+            const region = alertData.region || "kebumen";
+            if (calData) ACTIVE_MANGSA = calData.current_mangsa.number;
             setTweak({
-              severity: data.severity === "none" ? "medium" : data.severity,
+              severity: alertData.severity === "none" ? "medium" : alertData.severity,
               days,
-              onset: _fd(data.predicted_onset_date),
-              bodyText: data.message,
-              rec1: data.recommendations[0] || "",
-              rec2: data.recommendations[1] || "",
-              rec3: data.recommendations[2] || "",
+              location: _REGION_LABEL[region] || region,
+              updatedAgo: _updatedAgo(now),
+              onset: _fd(alertData.predicted_onset_date),
+              bodyText: alertData.message,
+              rec1: alertData.recommendations[0] || "",
+              rec2: alertData.recommendations[1] || "",
+              rec3: alertData.recommendations[2] || "",
               ensoPhase: _ENSO_LBL[phase] || phase,
               ensoSub: _ENSO_SUB[phase] || "",
-              oni: data.enso_context.oni_value,
+              oni: alertData.enso_context.oni_value,
               ensoSource: `NOAA · ${now.toLocaleDateString("id-ID",{month:"short",year:"numeric"})}`,
               implMin: Math.max(0, days - 5),
               implMax: days + 5,
+              implRegion: _REGION_IMPL[region] || region,
             });
             _setLoading(false);
           })

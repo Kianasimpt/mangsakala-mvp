@@ -13,7 +13,9 @@
     place-items: center;
     padding: 24px;
     overflow: auto;
+    scrollbar-width: none;
   }
+  body::-webkit-scrollbar { display: none; }
   .stage {
     width: 402px;
     height: 874px;
@@ -67,7 +69,7 @@
       { n: 11, name: "Desta",     tradisional: "19 Apr – 11 Mei", adaptif: "14 Apr – 6 Mei",   geser: -5,  musim: "Mareng" },
       { n: 12, name: "Sadha",     tradisional: "12 Mei – 21 Jun", adaptif: "7 Mei – 17 Jun",   geser: -5,  musim: "Mareng" },
     ];
-    const ACTIVE_MANGSA = 5;
+    let ACTIVE_MANGSA = 5;
     const REGIONS = [
       { label: "Kebumen, Jateng", available: true },
       { label: "Sleman, DIY",       available: false },
@@ -287,6 +289,7 @@
             }));
             MANGSA.length = 0;
             MANGSA.push(...mapped);
+            ACTIVE_MANGSA = data.current_mangsa.number;
             const pw = data.recommended_planting.primary_window;
             const s = pw.start.split("-"), e = pw.end.split("-");
             const d1 = new Date(pw.start), d2 = new Date(pw.end);

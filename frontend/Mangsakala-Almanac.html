@@ -12,7 +12,9 @@
   body {
     background: radial-gradient(ellipse at top, #2a1f15 0%, #160e08 80%);
     display: grid; place-items: center; padding: 24px; overflow: auto;
+    scrollbar-width: none;
   }
+  body::-webkit-scrollbar { display: none; }
   .stage { width: 402px; height: 874px; flex-shrink: 0; }
   .screen { background: #FAF1E2; }
   @keyframes _ms-spin { to { transform: rotate(360deg); } }
@@ -56,7 +58,7 @@
       { n: 11, name: "Desta",     tradisional: "19 Apr - 11 Mei", adaptif: "14 Apr - 6 Mei",   geser: -5,  musim: "Mareng",   tanda: "Lebah berkumpul" },
       { n: 12, name: "Sadha",     tradisional: "12 Mei - 21 Jun", adaptif: "7 Mei - 17 Jun",   geser: -5,  musim: "Mareng",   tanda: "Air mulai surut" },
     ];
-    const ACTIVE = 5;
+    let ACTIVE = 5;
     const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
     /* MANGSA_THEME + MangsaOrnament come from mangsa-shared.jsx */
 
@@ -760,6 +762,7 @@
             }));
             MANGSA.length = 0;
             MANGSA.push(...mapped);
+            ACTIVE = data.current_mangsa.number;
             setActiveMangsaUi(data.current_mangsa.number);
             // derive planting windows for all crops from predicted onset
             const onset = new Date(data.predicted_onset.date);
@@ -802,7 +805,7 @@
             <button onClick={() => _setOffline(false)} style={{background:"none",border:"none",color:"#C8553D",fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
           </div>}
           <div className="paper-grain"/>
-          <div className="almanac-scroll" style={{flex: 1, overflow: "auto"}}>
+          <div className="almanac-scroll" style={{flex: 1, overflow: "auto", scrollbarWidth: "none", msOverflowStyle: "none"}}>
             <Reveal delay={0}><TopBar onNotifOpen={() => setNotifOpen(true)} onLocationOpen={() => setLocOpen(true)} hasNotif={true} region={region}/></Reveal>
             <Reveal delay={80}><Hero activeMangsa={activeMangsaUi} activeDay={activeDayUi}/></Reveal>
             <Reveal delay={110}><MangsaSimulator activeMangsa={activeMangsaUi} setActiveMangsa={setActiveMangsaUi} activeDay={activeDayUi} setActiveDay={setActiveDayUi}/></Reveal>

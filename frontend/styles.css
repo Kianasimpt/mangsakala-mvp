@@ -178,7 +178,9 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 20px 16px 24px;
+  scrollbar-width: none;
 }
+.body::-webkit-scrollbar { display: none; }
 
 /* ========== HERO CARD ========== */
 .hero-card {

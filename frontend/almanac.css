@@ -1,4 +1,7 @@
 /* almanac.css — premium farmer almanac feel */
+.almanac-scroll::-webkit-scrollbar { display: none; }
+.notif-sheet::-webkit-scrollbar { display: none; }
+.loc-sheet::-webkit-scrollbar { display: none; }
 
 @keyframes breathe {
   0%, 100% { transform: scale(1); opacity: 1; }
