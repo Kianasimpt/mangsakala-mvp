@@ -14,7 +14,7 @@ Pendekatan **Two-Eyed Seeing**: mengawinkan sains iklim modern dengan kearifan l
 | Mata Kiri (Modern) | Mata Kanan (Lokal) |
 |---|---|
 | Data CHIRPS rainfall + NOAA ONI | Siklus 12 Mangsa Pranata Mangsa |
-| Random Forest ML predictor | Tanda alam, ritme musim Jawa |
+| XGBoost ML predictor | Tanda alam, ritme musim Jawa |
 | Prediksi onset berbasis ENSO | Kapat–Kalima sebagai patokan tanam |
 
 ## Masalah
@@ -36,7 +36,7 @@ Sistem tiga layar yang bisa diakses dari browser:
 
 ```mermaid
 graph LR
-    A[CHIRPS Daily Rainfall\n1995-2025] --> C[ML Predictor\nRandom Forest]
+    A[CHIRPS Daily Rainfall\n1995-2025] --> C[ML Predictor\nXGBoost]
     B[NOAA ONI Monthly\nENSO Index] --> C
     C --> D[FastAPI Backend\n4 endpoints]
     D --> E[Almanac\nKalender adaptif]
@@ -56,7 +56,7 @@ graph LR
 |---|---|
 | Frontend | React 18 (CDN), Babel Standalone, vanilla CSS |
 | Backend | FastAPI, Pydantic v2, Uvicorn |
-| ML | scikit-learn Random Forest, pandas, numpy |
+| ML | XGBoost, scikit-learn, numpy |
 | Data | CHIRPS (UCSB), NOAA Climate Prediction Center |
 
 ## Instalasi
@@ -65,37 +65,25 @@ graph LR
 - Python 3.11+
 - Git
 
-### Backend
+### Cara Cepat (Windows)
 
-```bash
+```powershell
 git clone https://github.com/<username>/mangsakala-mvp.git
-cd mangsakala-mvp/backend
+cd mangsakala-mvp
 
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # macOS/Linux
-
+# Install dependencies (sekali saja)
+cd backend
+.\venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+cd ..
+
+# Jalankan backend + frontend sekaligus
+.\start.ps1
 ```
+
+Frontend otomatis terbuka di `http://localhost:3000/Mangsakala-Almanac.html`
 
 API tersedia di `http://localhost:8000/api`
-
-### Frontend
-
-Frontend adalah file HTML statis — tidak butuh build step atau npm.
-
-Buka salah satu cara berikut:
-```bash
-# Opsi 1: Python static server (dari folder frontend/)
-cd frontend
-python -m http.server 3000
-
-# Opsi 2: Langsung buka di browser
-# Klik kanan Mangsakala-Almanac.html → Open with Browser
-```
-
-Akses di `http://localhost:3000/Mangsakala-Almanac.html`
 
 ### Endpoints Backend
 
@@ -112,7 +100,7 @@ Akses di `http://localhost:3000/Mangsakala-Almanac.html`
 Simplified Liebmann-Marengo: onset didefinisikan sebagai hari pertama akumulasi curah hujan mencapai threshold setelah minggu kering terakhir di awal musim.
 
 ### Model ML
-- **Algoritma:** Random Forest Regressor (100 estimators, max\_depth=5)
+- **Algoritma:** XGBoost Regressor
 - **Features:** ONI Jun–Sep rata-rata, ONI lag 3 bulan (Jul–Sep), total curah hujan pra-musim (Jul–Sep), onset tahun sebelumnya
 - **Validasi:** Leave-One-Out CV pada n=30 onset event 1995–2025
 - **Output:** Prediksi onset DOY, diklem ke rentang [260, 340]
@@ -121,13 +109,26 @@ Simplified Liebmann-Marengo: onset didefinisikan sebagai hari pertama akumulasi 
 
 | Metrik | Nilai |
 |---|---|
-| MAE Model | **9.2 hari** |
-| MAE Pranata Mangsa (baseline) | 12.0 hari |
-| Peningkatan akurasi | ~23% lebih akurat dari baseline tradisional |
+| MAE Model | **13.0 hari** |
+| MAE Pranata Mangsa (baseline) | 28.0 hari |
+| Peningkatan akurasi | ~54% lebih akurat dari baseline tradisional |
 | Performa terbaik | Tahun ENSO netral |
 | Performa terlemah | El Niño kuat (n=4 dalam training) |
 
 Tren iklim: onset hujan bergeser rata-rata **+7.3 hari** dari patokan Pranata Mangsa (rata-rata 30 tahun), dengan laju **+5.2 hari/dekade**.
+
+## Data & Reproduksi Model
+
+Model terlatih sudah tersedia di `model/onset_predictor.pkl` dan langsung dipakai backend — tidak perlu download apapun untuk menjalankan aplikasi.
+
+Untuk reproduksi training (data mentah, notebook Colab, dokumentasi):
+
+**[Google Drive — Data, Notebooks & Docs](https://drive.google.com/drive/u/0/folders/1HCXilGTSK5hBtaZLPqPZQhINGplKaDNr)**
+
+Isi Drive:
+- `data/raw/` — CHIRPS daily rainfall Kebumen 1995–2025 + NOAA ONI monthly
+- `notebooks/` — 01_preprocessing, 02_onset_detection, 03_train_model (Google Colab)
+- `docs/` — dokumentasi metodologi
 
 ## Keterbatasan & Transparansi
 
