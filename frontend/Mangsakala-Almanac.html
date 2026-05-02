@@ -67,7 +67,10 @@
     function _fd(s) { const p = s.split("-"); return `${parseInt(p[2])} ${_IDM[parseInt(p[1])-1]}`; }
     const _ENSO_LBL = {"el_nino_weak":"El Nino Lemah","el_nino_moderate":"El Nino Moderat","el_nino_strong":"El Nino Kuat","la_nina_weak":"La Nina Lemah","la_nina_moderate":"La Nina Moderat","la_nina_strong":"La Nina Kuat","neutral":"Netral"};
 
-    let _notifPadi = { window: "28 Okt - 14 Nov", days: 7, note: "Siapkan persemaian dan cek air irigasi." };
+    let _notifPadi    = { window: "28 Okt - 14 Nov", days: 7,  note: "Siapkan persemaian dan cek air irigasi." };
+    let _notifJagung  = { window: "3 Nov - 18 Nov",  days: 12, note: "Cocok setelah hujan awal stabil." };
+    let _notifCabai   = { window: "24 Okt - 6 Nov",  days: 3,  note: "Perlu bedengan kering dan drainase baik." };
+    let _notifKedelai = { window: "18 Nov - 2 Des",  days: 21, note: "Masih cukup waktu untuk persiapan benih." };
     let _notifEnso = { title: "ENSO · Memuat data...", body: "Menghubungi server untuk data iklim terkini." };
 
     /* tiny seeded sparkline values per mangsa (drift trend) */
@@ -238,9 +241,9 @@
       const [reminderOn, setReminderOn] = useState(true);
       const crops = [
         { key: "padi", name: "Padi", window: _notifPadi.window, days: _notifPadi.days, note: _notifPadi.note, tone: "terra" },
-        { key: "jagung", name: "Jagung", window: "3 Nov - 18 Nov", days: 12, note: "Cocok setelah hujan awal stabil.", tone: "olive" },
-        { key: "cabai", name: "Cabai", window: "24 Okt - 6 Nov", days: 3, note: "Perlu bedengan kering dan drainase baik.", tone: "amber" },
-        { key: "kedelai", name: "Kedelai", window: "18 Nov - 2 Des", days: 21, note: "Masih cukup waktu untuk persiapan benih.", tone: "blue" },
+        { key: "jagung",  name: "Jagung",  window: _notifJagung.window,  days: _notifJagung.days,  note: _notifJagung.note,  tone: "olive" },
+        { key: "cabai",   name: "Cabai",   window: _notifCabai.window,   days: _notifCabai.days,   note: _notifCabai.note,   tone: "amber" },
+        { key: "kedelai", name: "Kedelai", window: _notifKedelai.window, days: _notifKedelai.days, note: _notifKedelai.note, tone: "blue"  },
       ];
       const selected = crops.find(c => c.key === crop) || crops[0];
       const dueSoon = selected.days <= 7;
@@ -758,11 +761,20 @@
             MANGSA.length = 0;
             MANGSA.push(...mapped);
             setActiveMangsaUi(data.current_mangsa.number);
-            // update notification padi window
-            const pw = data.recommended_planting.primary_window;
+            // derive planting windows for all crops from predicted onset
+            const onset = new Date(data.predicted_onset.date);
             const today = new Date();
-            const daysUntil = Math.max(0, Math.round((new Date(pw.start) - today) / 86400000));
-            _notifPadi = { window: `${_fd(pw.start)} - ${_fd(pw.end)}`, days: daysUntil, note: "Siapkan persemaian dan cek air irigasi." };
+            function _win(a, b) {
+              const s = new Date(onset); s.setDate(s.getDate() + a);
+              const e = new Date(onset); e.setDate(e.getDate() + b);
+              const ds = s.toISOString().split("T")[0];
+              const de = e.toISOString().split("T")[0];
+              return { window: `${_fd(ds)} - ${_fd(de)}`, days: Math.max(0, Math.round((s - today) / 86400000)) };
+            }
+            _notifPadi    = { ..._win(7,  21), note: "Siapkan persemaian dan cek air irigasi." };
+            _notifJagung  = { ..._win(12, 27), note: "Cocok setelah hujan awal stabil." };
+            _notifCabai   = { ..._win(2,  15), note: "Perlu bedengan kering dan drainase baik." };
+            _notifKedelai = { ..._win(27, 41), note: "Masih cukup waktu untuk persiapan benih." };
             _setLoading(false);
             _setApiVer(v => v + 1);
           })
