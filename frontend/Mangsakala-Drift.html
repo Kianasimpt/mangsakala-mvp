@@ -1,0 +1,949 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mangsakala - Drift & Peringatan</title>
+<link rel="stylesheet" href="styles.css?v=15" />
+<link rel="stylesheet" href="almanac.css?v=13" />
+<link rel="stylesheet" href="drift.css?v=16" />
+<style>
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at top, #2a1f15 0%, #160e08 80%);
+    display: grid; place-items: center; padding: 24px; overflow: auto;
+  }
+  .stage { width: 402px; height: 874px; flex-shrink: 0; }
+  @keyframes ensoPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(200,85,61,0.18); }
+    50% { box-shadow: 0 0 0 7px rgba(200,85,61,0.32), 0 0 14px rgba(200,85,61,0.18); }
+  }
+  @keyframes ensoLabelIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+</style>
+</head>
+<body>
+  <div id="root" class="stage"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="mangsa-shared.jsx?v=9"></script>
+  <script type="text/babel" data-presets="react">
+    const { useState } = React;
+    const ACTIVE_MANGSA = 5;
+
+    // ===== DATA: Drift 1995-2025 (days late vs Pranata Mangsa onset Kapat) =====
+    // E = El Nino, L = La Nina, N = Neutral. Plausible trend: +14 by 2020s.
+    const DRIFT = [
+      [1995, -2,  "N"], [1996,  1,  "L"], [1997, 18, "E"], [1998, -3, "L"],
+      [1999, -5,  "L"], [2000, -1, "L"], [2001,  3, "N"], [2002, 12, "E"],
+      [2003,  5,  "N"], [2004,  9, "E"], [2005,  4, "N"], [2006, 11, "E"],
+      [2007,  2,  "L"], [2008,  0, "L"], [2009, 13, "E"], [2010,  -4, "L"],
+      [2011, -2,  "L"], [2012,  7, "N"], [2013,  6, "N"], [2014,  9, "N"],
+      [2015, 22,  "E"], [2016,  8, "L"], [2017,  3, "N"], [2018, 11, "N"],
+      [2019, 19,  "E"], [2020,  4, "L"], [2021,  6, "L"], [2022,  5, "L"],
+      [2023, 24,  "E"], [2024, 17, "E"], [2025, 16, "E"],
+    ];
+
+    const COLOR = {
+      E: "#C8553D",   // terracotta - El Nino
+      L: "#2F5D7A",   // deep blue - La Nina
+      N: "#9A8E76",   // warm gray - Neutral
+    };
+
+    // ===== ICONS =====
+    const Tri = ({s=22,c="#fff"}) => (
+      <svg viewBox="0 0 24 24" width={s} height={s} fill="none" stroke={c} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <path d="M12 9v4"/><path d="M12 17h.01"/>
+      </svg>
+    );
+    const Back = () => (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#F5E6D3" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    );
+    const Share = () => (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#F5E6D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+        <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
+      </svg>
+    );
+    const Dot = ({c}) => <span className="ldot" style={{background:c}}/>;
+    const Trend = ({c="#7A8450",up=true}) => (
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke={c} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{transform: up ? "none" : "scaleY(-1)"}}>
+        <path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>
+      </svg>
+    );
+    const ArrR = () => (
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6"/>
+      </svg>
+    );
+
+    // ===== TOP BAR =====
+    function TopBar({ activeMangsa }) {
+      const info = MANGSA_INFO[activeMangsa] || MANGSA_INFO[ACTIVE_MANGSA];
+      return (
+        <div className="tb">
+          <div className="tb-row">
+            <div className="tb-greet">
+              <div className="tb-hello">Analisis iklim lapangan</div>
+              <div className="tb-name">{info.name} <b>Drift Musim</b></div>
+            </div>
+            <div className="tb-actions">
+              <button className="tb-btn" aria-label="Kembali ke Almanac" onClick={() => window.location.href = "Mangsakala-Almanac.html"}><Back/></button>
+              <button className="tb-btn" aria-label="Lihat Peringatan" onClick={() => window.location.href = "Mangsakala-Alert.html"}><Tri s={20} c="#F5E6D3"/></button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function InsightTicker({ activeMangsa }) {
+      const info = MANGSA_INFO[activeMangsa] || MANGSA_INFO[ACTIVE_MANGSA];
+      return (
+        <div className="tanda">
+          <div className="tanda-pill">TANDA IKLIM</div>
+          <div className="tanda-text">
+            <b>{info.tanda}</b> - drift +16 hari bikin pembacaan awal hujan perlu lebih sabar sebelum mulai semai.
+          </div>
+        </div>
+      );
+    }
+
+    function SectionHeadSimple({ eyebrow, title, pill, onPillClick }) {
+      return (
+        <div className="sh">
+          <div className="sh-l">
+            <div className="sh-eyebrow">{eyebrow}</div>
+            <div className="sh-title">{title}</div>
+          </div>
+          {pill ? (
+            onPillClick ? (
+              <button type="button" className="sim-pill sim-pill-btn" onClick={onPillClick}>{pill}</button>
+            ) : (
+              <div className="sim-pill">{pill}</div>
+            )
+          ) : null}
+        </div>
+      );
+    }
+
+    // ===== ALERT BANNER =====
+    function AlertBanner() {
+      return (
+        <div
+          className="alert alert-high"
+          onClick={() => window.location.href = "Mangsakala-Alert.html"}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") window.location.href = "Mangsakala-Alert.html"; }}
+          role="button"
+          tabIndex="0"
+        >
+          <div className="alert-top">
+            <div className="alert-ico"><Tri s={22}/></div>
+            <div className="alert-titles">
+              <div className="alert-eyebrow">Atensi Musim</div>
+              <div className="alert-title">Onset hujan bergeser sekitar 16 hari</div>
+            </div>
+            <div className="alert-badge">Waspada</div>
+          </div>
+          <div className="alert-body">
+            Onset hujan mundur <b>16 hari</b>. Untuk sekarang, semai sebaiknya ditahan dulu.
+          </div>
+          <ul className="alert-list">
+            <li><span className="bul"/>Tunda semai 1-2 minggu.</li>
+            <li><span className="bul"/>Fokus siapkan lahan dulu.</li>
+            <li><span className="bul"/>Cek BMKG mingguan sebelum tanam.</li>
+          </ul>
+        </div>
+      );
+    }
+
+    function ClimateHero({ activeMangsa, heroCards, activeStrip, onOpenStrip }) {
+      const ref = React.useRef(null);
+      const [idx, setIdx] = React.useState(0);
+      const info = MANGSA_INFO[activeMangsa] || MANGSA_INFO[ACTIVE_MANGSA];
+      const onScroll = () => {
+        const el = ref.current;
+        if (!el) return;
+        const center = el.scrollLeft + el.clientWidth / 2;
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < el.children.length; i++) {
+          const c = el.children[i];
+          const d = Math.abs((c.offsetLeft + c.clientWidth / 2) - center);
+          if (d < bestD) { bestD = d; best = i; }
+        }
+        setIdx(best);
+      };
+      const scrollTo = (i) => {
+        const el = ref.current;
+        if (!el) return;
+        const card = el.children[i];
+        if (!card) return;
+        el.scrollTo({ left: Math.max(0, card.offsetLeft - 6), behavior: "smooth" });
+      };
+      return (
+        <div className="climate-hero">
+          <MangsaOrnament n={activeMangsa}/>
+          <div className="climate-hero-grain"/>
+          <div className="climate-hero-top">
+            <div className="climate-hero-head">
+              <div className="climate-hero-eyebrow">Sorotan Iklim Minggu Ini</div>
+              <div className="climate-hero-title">Start musim sebaiknya ditahan dulu</div>
+              <div className="climate-hero-body climate-hero-body--lead">
+                Ringkasan cepat kondisi mangsa, drift, ENSO, dan langkah lapangan minggu ini. Geser lalu ketuk kartu untuk buka penjelasan detailnya.
+              </div>
+            </div>
+            <div className="climate-hero-badge">Labuh adaptif</div>
+          </div>
+          <div className="climate-hero-carousel-wrap">
+            <div className="climate-hero-carousel" ref={ref} onScroll={onScroll}>
+              {heroCards.map((card) => (
+                <button
+                  key={card.key}
+                  type="button"
+                  className={
+                    "climate-hero-strip-cell climate-hero-carousel-card " +
+                    (card.kind === "primary" ? "is-primary " : "is-risk ") +
+                    (card.tone ? "tone-" + card.tone + " " : "") +
+                    (activeStrip === card.key ? "is-active" : "")
+                  }
+                  onClick={() => onOpenStrip(card.key)}
+                >
+                  <span className="tb-strip-lbl">{card.label}</span>
+                  <span className="tb-strip-val">{card.em ? <span className="em">{card.value}</span> : card.value}</span>
+                  <span className="tb-strip-note">{card.note}</span>
+                </button>
+              ))}
+            </div>
+            <div className="climate-hero-carousel-meta">
+              <div className="climate-hero-carousel-hint">Geser kartu, lalu ketuk untuk detail</div>
+              <div className="climate-hero-carousel-dots">
+                {heroCards.map((card, i) => (
+                  <button key={card.key} type="button" className={"climate-hero-dot " + (i === idx ? "is-on" : "")} onClick={() => scrollTo(i)} aria-label={card.label}/>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ===== ENSO CONTEXT CARD =====
+    function EnsoCard() {
+      const ref = React.useRef(null);
+      const [live, setLive] = React.useState(false);
+      const [oniVal, setOniVal] = React.useState(0);
+      const TARGET_ONI = 0.8;
+
+      React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        if (!("IntersectionObserver" in window)) { setLive(true); return; }
+        const scroller = el.closest(".body-drift") || null;
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(entry => { if (entry.isIntersecting) { setLive(true); io.disconnect(); } });
+        }, { root: scroller, threshold: 0.35 });
+        io.observe(el);
+        return () => io.disconnect();
+      }, []);
+
+      React.useEffect(() => {
+        if (!live) return;
+        let raf = 0, start = 0;
+        const duration = 1100;
+        setOniVal(0);
+        const tick = (now) => {
+          if (!start) start = now;
+          const t = Math.min(1, (now - start) / duration);
+          const eased = 1 - Math.pow(1 - t, 2.5);
+          setOniVal(parseFloat((eased * TARGET_ONI).toFixed(2)));
+          if (t < 1) raf = requestAnimationFrame(tick);
+          else setOniVal(TARGET_ONI);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+      }, [live]);
+
+      return (
+        <div className="enso" ref={ref}>
+          <div className="enso-l">
+            <div className="enso-lbl">Konteks ENSO Saat Ini</div>
+            <div className="enso-phase">
+              <span className="enso-pdot" style={{
+                background: COLOR.E,
+                animation: live ? "ensoPulse 2s ease-in-out 1s infinite" : "none"
+              }}/>
+              <span style={{
+                animation: live ? "ensoLabelIn 0.45s ease-out 0.25s both" : "none",
+                opacity: live ? undefined : 0
+              }}>El Nino Lemah</span>
+            </div>
+          </div>
+          <div className="enso-r">
+            <div className="enso-oni">
+              <div className="enso-oni-lbl">ONI</div>
+              <div className="enso-oni-val" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {live ? (oniVal >= 0.05 ? `+${oniVal.toFixed(1)}` : "+0.0") : "+0.0"}
+              </div>
+            </div>
+            <div className="enso-bar">
+              <div className="enso-bar-track">
+                <div className="enso-bar-fill" style={{
+                  left: "50%",
+                  width: live ? `${(TARGET_ONI / 3) * 50}%` : "0%",
+                  background: live ? "rgba(200,85,61,0.5)" : "rgba(200,85,61,0)",
+                  transition: "width 1.3s cubic-bezier(0.34,1.2,0.64,1) 0.15s, background 1s ease 0.15s"
+                }}/>
+              </div>
+              <div className="enso-bar-axis">
+                <span>-3</span><span>0</span><span>+3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ===== CHART =====
+    function DriftChart() {
+      const chartRef = React.useRef(null);
+      const [live, setLive] = React.useState(false);
+      const [progress, setProgress] = React.useState(0);
+      const [activeYear, setActiveYear] = React.useState(null);
+      const W = 370, H = 220;
+      const pad = { l: 32, r: 12, t: 14, b: 28 };
+      const x0 = 1995, x1 = 2025;
+      const y0 = -10, y1 = 30;
+      const sx = (yr) => pad.l + ((yr - x0) / (x1 - x0)) * (W - pad.l - pad.r);
+      const sy = (v)  => pad.t + (1 - (v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+
+      const yTicks = [-10, 0, 10, 20, 30];
+      const xTicks = [1995, 2000, 2005, 2010, 2015, 2020, 2025];
+
+      // smooth-ish polyline
+      const chartPoints = DRIFT.map(([yr,v,p]) => ({ yr, v, p, x: sx(yr), y: sy(v) }));
+      const linePath = chartPoints.map((pt, i) => `${i === 0 ? "M" : "L"}${pt.x},${pt.y}`).join(" ");
+      const segments = chartPoints.slice(1).map((pt, i) => {
+        const prev = chartPoints[i];
+        return Math.hypot(pt.x - prev.x, pt.y - prev.y);
+      });
+      const lineLen = segments.reduce((sum, len) => sum + len, 0);
+      const marks = segments.reduce((acc, len) => {
+        acc.push(acc[acc.length - 1] + len);
+        return acc;
+      }, [0]);
+      const liveLen = progress * lineLen;
+      const latest = chartPoints[chartPoints.length - 1];
+      const activePoint = chartPoints.find(pt => pt.yr === activeYear) || null;
+      const isAnimating = live && progress < 0.999;
+      let livePath = `M${chartPoints[0].x},${chartPoints[0].y}`;
+      let runner = { x: chartPoints[0].x, y: chartPoints[0].y };
+      for (let i = 1; i < chartPoints.length; i++) {
+        const prevLen = marks[i - 1];
+        const nextLen = marks[i];
+        const prev = chartPoints[i - 1];
+        const next = chartPoints[i];
+        if (liveLen >= nextLen) {
+          livePath += ` L${next.x},${next.y}`;
+          runner = { x: next.x, y: next.y };
+        } else if (liveLen > prevLen) {
+          const local = (liveLen - prevLen) / Math.max(1, nextLen - prevLen);
+          const x = prev.x + (next.x - prev.x) * local;
+          const y = prev.y + (next.y - prev.y) * local;
+          livePath += ` L${x},${y}`;
+          runner = { x, y };
+          break;
+        } else {
+          break;
+        }
+      }
+      const visiblePointCount = marks.filter(mark => mark <= liveLen + 0.5).length;
+      React.useEffect(() => {
+        const el = chartRef.current;
+        if (!el) return;
+        if (!("IntersectionObserver" in window)) {
+          setLive(true);
+          return;
+        }
+        const scroller = el.closest(".body-drift") || null;
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              setLive(false);
+              requestAnimationFrame(() => setLive(true));
+              io.disconnect();
+            }
+          });
+        }, { root: scroller, threshold: 0.16, rootMargin: "0px 0px -18% 0px" });
+        io.observe(el);
+        return () => io.disconnect();
+      }, []);
+      React.useEffect(() => {
+        if (!live) return;
+        let raf = 0;
+        let start = 0;
+        const duration = 2900;
+        setProgress(0);
+        const tick = (now) => {
+          if (!start) start = now;
+          const t = Math.min(1, (now - start) / duration);
+          const eased = 1 - Math.pow(1 - t, 3);
+          setProgress(eased);
+          if (t < 1) raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+      }, [live]);
+      // alert zone fill
+      const zoneTop = sy(30);
+      const zoneBot = sy(14);
+
+      return (
+        <div className={"chart-card " + (live ? "chart-live" : "")} ref={chartRef}>
+          <div className="chart-head">
+            <div>
+              <div className="chart-title">Pergeseran Awal Musim Hujan</div>
+              <div className="chart-sub">1995-2025 · selisih hari terhadap Pranata Mangsa</div>
+            </div>
+            <div className="chart-chip">
+              <Trend c="#8D5C2F" up/><span>+5,2 hari per dekade</span>
+            </div>
+          </div>
+
+          <svg className="chart-svg" viewBox={`0 0 ${W} ${H}`} width="100%">
+            <defs>
+              <linearGradient id="liveLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#7A8450"/>
+                <stop offset="70%" stopColor="#C8553D"/>
+                <stop offset="100%" stopColor="#F2B36D"/>
+              </linearGradient>
+              <linearGradient id="chartPanelGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.95)"/>
+                <stop offset="100%" stopColor="rgba(247,238,226,0.95)"/>
+              </linearGradient>
+            </defs>
+            <g className="chart-panel">
+              <rect x={pad.l - 6} y={pad.t - 2} width={W - pad.l - pad.r + 12} height={H - pad.t - pad.b + 4}
+                    rx="18" ry="18" fill="#E8D5B7" opacity="0.42"/>
+              <rect x={pad.l - 4} y={pad.t - 4} width={W - pad.l - pad.r + 8} height={H - pad.t - pad.b + 4}
+                    rx="18" ry="18" fill="url(#chartPanelGrad)" stroke="rgba(229,210,179,0.92)" strokeWidth="1.2"/>
+            </g>
+            {/* level zones */}
+            <rect x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={sy(14) - pad.t}
+                  fill="#FFF7F3" opacity="0.95"/>
+            <rect x={pad.l} y={sy(14)} width={W - pad.l - pad.r} height={sy(0) - sy(14)}
+                  fill="#FCE8E2" opacity="0.92"/>
+            <rect x={pad.l} y={sy(0)} width={W - pad.l - pad.r} height={H - pad.b - sy(0)}
+                  fill="#FFFCF7" opacity="0.95"/>
+
+            {/* y-grid + labels */}
+            {yTicks.map(t => (
+              <g key={"y"+t}>
+                <line x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)}
+                      stroke="#E8D5B7" strokeWidth="1" strokeDasharray={t === 0 ? "0" : "2 3"}/>
+                <text x={pad.l - 6} y={sy(t) + 3.5} textAnchor="end"
+                      fontSize="9.5" fill="#8A7657" fontWeight="600">{t > 0 ? "+"+t : t}</text>
+              </g>
+            ))}
+
+            {/* baseline emphasis */}
+            <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="#3E2F1C" strokeWidth="1.4"/>
+            <text x={W - pad.r - 4} y={sy(0) - 4} textAnchor="end" fontSize="9" fontWeight="700" fill="#3E2F1C">BASELINE</text>
+
+            <text x={pad.l + 6} y={pad.t + 12} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#A8412C">Zona rawan</text>
+            <text x={pad.l + 6} y={sy(14) + 11} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#B1604B">Zona waspada</text>
+            <text x={pad.l + 6} y={H - pad.b - 8} textAnchor="start" fontSize="8.5" fontWeight="700" fill="#8A7657">Zona aman</text>
+
+            {/* x-axis labels */}
+            {xTicks.map(t => (
+              <text key={"x"+t} x={sx(t)} y={H - 8} textAnchor="middle"
+                    fontSize="9.5" fill="#8A7657" fontWeight="600">{`'${String(t).slice(2)}`}</text>
+            ))}
+
+            {activePoint && (
+              <g className="chart-active-guide">
+                <line x1={activePoint.x} x2={activePoint.x} y1={pad.t} y2={H - pad.b}
+                      stroke="#2A1F12" strokeWidth="1.2" strokeDasharray="3 4" opacity="0.35"/>
+                <line x1={pad.l} x2={activePoint.x} y1={activePoint.y} y2={activePoint.y}
+                      stroke="#2A1F12" strokeWidth="1" strokeDasharray="3 4" opacity="0.22"/>
+              </g>
+            )}
+
+            <g className="chart-data">
+              {/* line */}
+              <path className="chart-line-shadow" d={linePath} fill="none" stroke="#D8C7A8" strokeWidth="1.8"
+                    strokeLinecap="round" strokeLinejoin="round"/>
+              <path className="chart-line-live" d={livePath} fill="none" stroke="url(#liveLineGrad)" strokeWidth="2.8"
+                        strokeLinecap="round" strokeLinejoin="round"/>
+              {isAnimating && (
+                <circle className="chart-runner" cx={runner.x} cy={runner.y} r="5.2" fill="#F5E6D3" stroke="#C8553D" strokeWidth="2"/>
+              )}
+
+              {/* dots */}
+              {chartPoints.map(({yr,v,p,x,y}, i) => (
+                <g className={"chart-point " + (i < visiblePointCount ? "is-visible" : "") + (activeYear === yr ? " is-active" : "")} key={yr}>
+                  {i === chartPoints.length - 1 && isAnimating && (
+                    <circle className="chart-point-ring" cx={x} cy={y} r="8.5" fill="none" stroke="#C8553D" strokeWidth="1.5"/>
+                  )}
+                  <circle cx={x} cy={y} r="4.2" fill={COLOR[p]} stroke="#FAF1E2" strokeWidth="1.6"/>
+                  <circle
+                    className="chart-hit"
+                    cx={x}
+                    cy={y}
+                    r="12"
+                    fill="transparent"
+                    onMouseEnter={() => setActiveYear(yr)}
+                    onMouseLeave={() => setActiveYear(null)}
+                    onFocus={() => setActiveYear(yr)}
+                    onBlur={() => setActiveYear(null)}
+                    onClick={() => setActiveYear(prev => prev === yr ? null : yr)}
+                    tabIndex="0"
+                    role="button"
+                    aria-label={`${yr}, ${v > 0 ? "+" : ""}${v} hari, ${p === "E" ? "El Nino" : p === "L" ? "La Nina" : "Netral"}`}
+                  />
+                  {(v >= 18) && (
+                    <text className={"chart-label " + (i < visiblePointCount ? "is-visible" : "")} x={x} y={y - 8} textAnchor="middle" fontSize="9" fontWeight="700" fill="#3E2F1C">{yr}</text>
+                  )}
+                </g>
+              ))}
+              {activePoint && (
+                <g className="chart-tooltip" transform={`translate(${Math.max(pad.l + 8, Math.min(activePoint.x - 48, W - pad.r - 100))}, ${Math.max(pad.t + 6, activePoint.y - 56)})`}>
+                  <rect width="96" height="38" rx="11" ry="11" fill="#2A1F12" opacity="0.96"/>
+                  <text x="10" y="14" fontSize="8" fontWeight="700" fill="#E8D5B7">{activePoint.yr}</text>
+                  <text x="10" y="27" fontSize="10" fontWeight="800" fill="#F5E6D3">{`${activePoint.v > 0 ? "+" : ""}${activePoint.v} hari`}</text>
+                  <text x="58" y="27" fontSize="7.6" fontWeight="700" fill="#E8D5B7">{activePoint.p === "E" ? "EL NINO" : activePoint.p === "L" ? "LA NINA" : "NETRAL"}</text>
+                </g>
+              )}
+            </g>
+          </svg>
+
+          <div className="chart-legend">
+            <div className="lg"><Dot c={COLOR.E}/>El Nino</div>
+            <div className="lg"><Dot c={COLOR.L}/>La Nina</div>
+            <div className="lg"><Dot c={COLOR.N}/>Netral</div>
+          </div>
+          <div className="chart-zones-note">
+            <span><b>Zona aman</b> di sekitar baseline.</span>
+            <span><b>Zona waspada</b> mulai mendekati ambang keterlambatan.</span>
+            <span><b>Zona rawan</b> menunjukkan drift tinggi untuk semai awal.</span>
+          </div>
+        </div>
+      );
+    }
+
+    function QuickSheets({ cards, onPick }) {
+      const items = cards || [
+        {
+          lbl: "Dampak Lapangan",
+          preview: "Air awal musim belum rata, jadi fokus dulu ke lahan dan cadangan benih.",
+          kicker: "3 hal utama",
+          tone: "terra",
+          why: "Pergeseran onset paling terasa pada air awal musim, ritme semai, dan kesiapan lahan. Tiga hal ini lebih penting dibaca dulu sebelum masuk keputusan tanam.",
+          items: [
+            { label: "Air", body: "Curah hujan awal belum rata. Simpan air dan cek sawah tadah hujan sebelum buka semai." },
+            { label: "Benih", body: "Jangan habiskan benih untuk semai gelombang pertama. Sisakan untuk skenario mundur 2 minggu." },
+            { label: "Lahan", body: "Fokus ke olah tanah kering, saluran buang, dan bedengan agar siap saat hujan mulai konsisten." },
+          ],
+        },
+        {
+          lbl: "Rencana 2 Minggu",
+          preview: "Minggu ini tahan semai, lalu cek lagi hujan kumulatif sebelum masuk jendela tanam.",
+          kicker: "Timeline singkat",
+          tone: "olive",
+          why: "Yang paling aman sekarang bukan langsung tanam, tetapi bergerak bertahap sambil membaca kestabilan hujan mingguan.",
+          items: [
+            { label: "Minggu ini", body: "Tahan semai. Lanjut persiapan lahan dan cek kelembapan tanah, belum perlu tebar benih." },
+            { label: "7 hari lagi", body: "Cek hujan kumulatif. Kalau hujan sudah lebih merata, mulai siapkan persemaian kecil sebagai uji aman." },
+            { label: "14 hari lagi", body: "Mulai semai bila hujan stabil dan prakiraan mingguan tidak menunjukkan jeda kering panjang." },
+          ],
+        },
+        {
+          lbl: "Konteks ENSO",
+          preview: "Fase El Nino lemah masih cukup untuk menggeser awal musim dari pola biasanya.",
+          kicker: "Latar iklim",
+          tone: "blue",
+          why: "Saat fase El Nino aktif, awal musim hujan sering mundur melewati ambang waspada. Karena itu kalender tanam lebih aman dibaca sebagai panduan adaptif, bukan tanggal tetap.",
+          items: [
+            { label: "Fase saat ini", body: "El Nino lemah dengan ONI sekitar +0.8 masih memberi tekanan pada awal musim." },
+            { label: "Pola umum", body: "Dalam data 30 tahun, kejadian El Nino cenderung mendorong onset hujan lebih lambat." },
+            { label: "Implikasi", body: "Prioritaskan cek prakiraan mingguan sebelum masuk keputusan semai skala penuh." },
+          ],
+        },
+      ];
+      return (
+        <div className="quick-sheets">
+          <div className="quick-head">
+            <div className="quick-eyebrow">Ringkasan Praktis</div>
+            <div className="quick-title">Baca cepat, buka detail saat perlu</div>
+          </div>
+          <div className="quick-grid">
+            {items.map((card) => (
+              <button key={card.lbl} type="button" className={"quick-card tone-" + card.tone} onClick={() => onPick(card)}>
+                <div className="quick-card-top">
+                  <span className="quick-kicker">{card.kicker}</span>
+                  <span className="quick-arrow"><ArrR/></span>
+                </div>
+                <div className="quick-card-title">{card.lbl}</div>
+                <div className="quick-card-preview">{card.preview}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ===== STATS =====
+    function OldStatsGrid() {
+      const stats = [
+        { lbl: "Rata-rata Drift", val: "+7,3", unit: "hari", note: "30 tahun", tone: "olive" },
+        { lbl: "Drift Tertinggi",  val: "2023", unit: "+24 hari", note: "El Nino kuat", tone: "terra" },
+        { lbl: "Tren per Dekade",  val: "+5,2", unit: "hari", note: "naik konsisten", tone: "terra", icon: <Trend up c="#A8412C"/> },
+        { lbl: "Rata-rata El Nino", val: "+15,2", unit: "hari", note: "9 kejadian", tone: "blue" },
+      ];
+      return (
+        <div className="stats-grid">
+          {stats.map(s => (
+            <div key={s.lbl} className={"stat stat-"+s.tone}>
+              <div className="stat-lbl">{s.lbl}</div>
+              <div className="stat-val">
+                {s.val}
+                <span className="stat-unit">{s.unit}</span>
+              </div>
+              <div className="stat-note">
+                {s.icon}<span>{s.note}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function StatsCarousel({ onPick }) {
+      const ref = React.useRef(null);
+      const [idx, setIdx] = useState(0);
+      const stats = [
+        { lbl: "Rata-rata Drift", val: "+7,3", unit: "hari", note: "30 tahun", tone: "olive", why: "Rata-rata pergeseran onset hujan dari 1995 sampai 2025. Angka positif berarti hujan datang lebih lambat dari patokan Pranata Mangsa.", action: "Gunakan sebagai sinyal dasar untuk tidak buru-buru semai saat awal Labuh." },
+        { lbl: "Drift Tertinggi", val: "2023", unit: "+24 hari", note: "El Nino kuat", tone: "terra", why: "Tahun 2023 menjadi contoh musim yang sangat mundur. Pada kondisi seperti ini, sawah tadah hujan paling rawan gagal semai awal.", action: "Siapkan rencana mundur 2-3 minggu dan cek ulang prakiraan mingguan." },
+        { lbl: "Tren per Dekade", val: "+5,2", unit: "hari", note: "naik konsisten", tone: "terra", icon: <Trend up c="#A8412C"/>, why: "Setiap 10 tahun, onset hujan cenderung mundur sekitar lima hari. Ini bukan ramalan tunggal, tetapi pola jangka panjang.", action: "Kalender tanam perlu dilihat adaptif, bukan hanya tanggal warisan." },
+        { lbl: "Rata-rata El Nino", val: "+15,2", unit: "hari", note: "9 kejadian", tone: "blue", why: "Saat El Nino, rata-rata hujan mundur melewati ambang waspada 14 hari. Dampaknya terasa pada ketersediaan air awal musim.", action: "Saat fase El Nino aktif, prioritaskan varietas tahan kering dan air cadangan." },
+      ];
+      const onScroll = () => {
+        const el = ref.current;
+        if (!el) return;
+        const center = el.scrollLeft + el.clientWidth / 2;
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < el.children.length; i++) {
+          const c = el.children[i];
+          const d = Math.abs((c.offsetLeft + c.clientWidth / 2) - center);
+          if (d < bestD) { bestD = d; best = i; }
+        }
+        setIdx(best);
+      };
+      const scrollTo = (i) => {
+        const el = ref.current;
+        if (!el) return;
+        const card = el.children[i];
+        if (!card) return;
+        el.scrollTo({ left: Math.max(0, card.offsetLeft - 18), behavior: "smooth" });
+      };
+      return (
+        <div className="stats-carousel-wrap">
+          <div className="stats-head">
+            <div>
+              <div className="stats-eyebrow">4 Indikator Iklim</div>
+              <div className="stats-title">Ringkasan yang paling perlu dibaca</div>
+            </div>
+            <div className="stats-count">{idx + 1}/4</div>
+          </div>
+          <div className="stats-carousel" ref={ref} onScroll={onScroll}>
+            {stats.map(s => (
+              <button key={s.lbl} type="button" className={"stat-tab stat-"+s.tone} onClick={() => onPick(s)}>
+                <div className="stat-top">
+                  <div className="stat-num">{s.note}</div>
+                  <div className="stat-tone">{s.tone === "blue" ? "ENSO" : s.tone === "terra" ? "DRIFT" : "IKLIM"}</div>
+                </div>
+                <div className="stat-lbl">{s.lbl}</div>
+                <div className="stat-val">
+                  {s.val}
+                  <span className="stat-unit">{s.unit}</span>
+                </div>
+                <div className="stat-note">
+                  {s.icon}<span>{s.note}</span>
+                </div>
+                <div className="stat-desc">{s.action}</div>
+                <div className="stat-tab-hint">Ketuk untuk detail</div>
+              </button>
+            ))}
+          </div>
+          <div className="stats-dots">
+            {stats.map((s, i) => (
+              <button key={s.lbl} type="button" className={"stats-dot " + (i === idx ? "is-on" : "")} onClick={() => scrollTo(i)} aria-label={s.lbl}/>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function ClimatePopup({ sheet, onClose }) {
+      if (!sheet) return null;
+      return (
+        <div className="climate-back" onClick={onClose}>
+          <div className="climate-pop" onClick={e => e.stopPropagation()}>
+            <div className="climate-grab"/>
+            <div className="climate-head">
+              <div className="climate-num">{sheet.val || "i"}</div>
+              <div className="climate-titlebox">
+                <div className="climate-eyebrow">{sheet.kicker || "Penjelasan Iklim"}</div>
+                <div className="climate-title">{sheet.lbl || sheet.title}</div>
+              </div>
+              <button type="button" className="climate-close" onClick={onClose} aria-label="Tutup">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+            <div className="climate-main">
+              {sheet.val && <div className="climate-big">{sheet.val} <span className="stat-unit">{sheet.unit}</span></div>}
+              <div className="climate-copy">{sheet.why}</div>
+              {sheet.items ? (
+                <div className="climate-stack">
+                  {sheet.items.map((item) => (
+                    <div className="climate-pill" key={item.label}>
+                      <span className="climate-pill-lbl">{item.label}</span>
+                      <span>{item.body}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="climate-actions">
+                  <div className="climate-pill">
+                    <span className="climate-pill-lbl">Dampak</span>
+                    <span>{sheet.note}</span>
+                  </div>
+                  <div className="climate-pill">
+                    <span className="climate-pill-lbl">Saran</span>
+                    <span>{sheet.action}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function AppNav() {
+      const items = [
+        { key: "mangsa", lbl: "Mangsa", href: "Mangsakala-Almanac.html", svg: <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></> },
+        { key: "iklim", lbl: "Iklim", href: "Mangsakala-Drift.html", svg: <><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></> },
+        { key: "alert", lbl: "Waspada", href: "Mangsakala-Alert.html", svg: <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></> },
+      ];
+      return (
+        <div className="app-tabbar">
+          {items.map(it => (
+            <button
+              key={it.key}
+              className={"app-tab " + (it.key === "iklim" ? "is-active" : "")}
+              onClick={() => { if (it.key !== "iklim") window.location.href = it.href; }}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">{it.svg}</svg>
+              <span>{it.lbl}</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // ===== Scroll reveal hook =====
+    function useReveal({ threshold = 0.08, rootMargin = '0px 0px -8% 0px' } = {}) {
+      const ref = React.useRef(null);
+      const [shown, setShown] = React.useState(false);
+      React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.ownerDocument.body.classList.add("reveal-ready");
+        if (!("IntersectionObserver" in window)) {
+          setShown(true);
+          return;
+        }
+        const scroller = el.closest('.body-drift') || el.parentElement;
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(e => { if (e.isIntersecting) { setShown(true); io.disconnect(); } });
+        }, { root: scroller, threshold, rootMargin });
+        io.observe(el);
+        return () => io.disconnect();
+      }, []);
+      return { ref, className: 'reveal ' + (shown ? 'reveal-in' : '') };
+    }
+    function Reveal({ children, delay = 0, threshold, rootMargin }) {
+      const { ref, className } = useReveal({ threshold, rootMargin });
+      return <div ref={ref} className={className} style={{ transitionDelay: `${delay}ms`, animationDelay: `${delay}ms` }}>{children}</div>;
+    }
+
+    // ===== APP =====
+    function App() {
+      const [pickedSheet, setPickedSheet] = useState(null);
+      const [activeStrip, setActiveStrip] = useState(null);
+      const activeMangsa = getStoredActiveMangsa(ACTIVE_MANGSA);
+      const appTheme = mangsaThemeStyle(activeMangsa);
+      const info = MANGSA_INFO[activeMangsa] || MANGSA_INFO[ACTIVE_MANGSA];
+      const theme = MANGSA_THEME[activeMangsa] || MANGSA_THEME[ACTIVE_MANGSA];
+      const heroStripSheets = {
+        mangsa: {
+          kicker: "Mangsa Aktif",
+          lbl: `${info.roman} · ${info.name}`,
+          val: info.roman,
+          unit: info.musim,
+          why: `${info.name} sedang berjalan pada musim ${info.musim}. Pada fase ini, tanda alam utama yang dibaca adalah ${info.tanda.toLowerCase()}, jadi keputusan tanam perlu menyesuaikan ritme mangsa yang aktif sekarang.`,
+          items: [
+            { label: "Musim", body: `${info.musim}. Ini memberi konteks apakah lahan sedang masuk fase kering, transisi, atau hujan.` },
+            { label: "Tanda alam", body: `${info.tanda}. Ini yang jadi petunjuk tradisional paling penting untuk membaca situasi lapangan.` },
+            { label: "Pola mangsa", body: theme.pattern.charAt(0).toUpperCase() + theme.pattern.slice(1) + ". Gunakan ini sebagai pembacaan lokal sebelum masuk keputusan semai." },
+          ],
+        },
+        drift: {
+          kicker: "Drift Musim",
+          lbl: "Pergeseran onset hujan",
+          val: "+16",
+          unit: "hari",
+          why: "Drift +16 hari berarti awal musim hujan diperkirakan datang lebih lambat dibanding patokan Pranata Mangsa. Ini sinyal bahwa semai terlalu cepat berisiko ketemu jeda hujan di awal musim.",
+          items: [
+            { label: "Arti angka", body: "Onset hujan terbaca mundur sekitar 16 hari dari kalender tradisional." },
+            { label: "Dampak lapangan", body: "Kelembapan tanah dan kontinuitas air awal musim belum cukup aman untuk semai cepat." },
+            { label: "Langkah", body: "Tahan semai 1-2 minggu sambil fokus ke persiapan lahan dan cek hujan mingguan." },
+          ],
+        },
+        enso: {
+          kicker: "Konteks ENSO",
+          lbl: "El Nino lemah",
+          val: "+0.8",
+          unit: "ONI",
+          why: "Fase El Nino lemah masih memberi tekanan ke pembentukan hujan awal musim. Efeknya tidak seekstrem El Nino kuat, tetapi cukup untuk bikin onset hujan datang lebih pelan dan kurang stabil.",
+          items: [
+            { label: "Status", body: "El Nino lemah dengan ONI sekitar +0.8, jadi laut Pasifik masih cenderung menghangat." },
+            { label: "Pengaruh", body: "Biasanya hujan awal musim lebih ragu-ragu dan akumulasi air belum langsung mantap." },
+            { label: "Saran", body: "Jangan hanya baca tanggal. Padukan pembacaan ENSO dengan hujan mingguan dan tanda mangsa lokal." },
+          ],
+        },
+        risk: {
+          kicker: "Risiko Semai Awal",
+          lbl: "Perlu ditahan",
+          val: "Tahan",
+          unit: "semai",
+          why: "Risiko semai awal masih tinggi karena hujan pembuka musim belum mantap. Kalau dipaksakan terlalu cepat, bibit berisiko ketemu jeda air saat fase awal tumbuh.",
+          items: [
+            { label: "Risiko", body: "Air belum cukup konsisten untuk menjaga bibit aman di fase awal." },
+            { label: "Dampak", body: "Persemaian bisa tumbuh tidak rata atau malah terganggu saat jeda hujan datang." },
+            { label: "Arah", body: "Tunda semai sambil pastikan lahan, benih, dan sumber air cadangan siap." },
+          ],
+        },
+        stabilitas: {
+          kicker: "Stabilitas Hujan",
+          lbl: "Masih berubah",
+          val: "Belum",
+          unit: "stabil",
+          why: "Pola hujan mingguan masih berubah-ubah, jadi belum cukup aman dibaca sebagai awal musim yang benar-benar mantap. Ini fase yang perlu dipantau rapat sebelum keputusan tanam dibuat.",
+          items: [
+            { label: "Sinyal", body: "Hujan sudah mulai muncul, tetapi kontinuitasnya belum rapi dari minggu ke minggu." },
+            { label: "Cara baca", body: "Jangan lihat satu hujan besar saja. Lihat apakah pola 7 hari benar-benar berulang dan mengisi tanah." },
+            { label: "Langkah", body: "Pantau BMKG mingguan sambil cocokkan dengan kondisi sawah setempat." },
+          ],
+        },
+        langkah: {
+          kicker: "Langkah Minggu Ini",
+          lbl: "Siapkan lahan dulu",
+          val: "Siap",
+          unit: "lahan",
+          why: "Minggu ini lebih cocok dipakai untuk beres-beres lahan daripada langsung mulai semai. Dengan begitu, saat hujan sudah lebih stabil, eksekusi tanam bisa lebih cepat dan aman.",
+          items: [
+            { label: "Fokus", body: "Bersihkan petak, cek saluran, dan siapkan struktur lahan lebih dulu." },
+            { label: "Persiapan", body: "Rapikan benih, alat, dan opsi varietas agar siap saat jendela adaptif terbuka." },
+            { label: "Target", body: "Masuk tanam saat air lebih pasti, bukan sekadar karena tanggal kalender." },
+          ],
+        },
+      };
+      const heroCards = [
+        { key: "mangsa", label: "Mangsa aktif", value: `${info.roman} · ${info.name}`, note: info.musim, kind: "primary" },
+        { key: "drift", label: "Drift", value: "+16 hari", note: "lebih lambat", kind: "primary", em: true },
+        { key: "enso", label: "ENSO", value: "El Nino", note: "lemah", kind: "primary" },
+        { key: "risk", label: "Risiko semai awal", value: "Perlu ditahan", note: "tunda dulu", kind: "risk", tone: "high" },
+        { key: "stabilitas", label: "Stabilitas hujan", value: "Masih berubah", note: "pantau 7 hari", kind: "risk", tone: "mid" },
+        { key: "langkah", label: "Langkah minggu ini", value: "Siapkan lahan dulu", note: "aksi utama", kind: "risk", tone: "good" },
+      ];
+      const quickCards = [
+        {
+          lbl: "Dampak Lapangan",
+          preview: "Air awal musim belum rata, jadi fokus dulu ke lahan dan cadangan benih.",
+          kicker: "3 hal utama",
+          tone: "terra",
+          why: "Pergeseran onset paling terasa pada air awal musim, ritme semai, dan kesiapan lahan. Tiga hal ini lebih penting dibaca dulu sebelum masuk keputusan tanam.",
+          items: [
+            { label: "Air", body: "Curah hujan awal belum rata. Simpan air dan cek sawah tadah hujan sebelum buka semai." },
+            { label: "Benih", body: "Jangan habiskan benih untuk semai gelombang pertama. Sisakan untuk skenario mundur 2 minggu." },
+            { label: "Lahan", body: "Fokus ke olah tanah kering, saluran buang, dan bedengan agar siap saat hujan mulai konsisten." },
+          ],
+        },
+        {
+          lbl: "Rencana 2 Minggu",
+          preview: "Minggu ini tahan semai, lalu cek lagi hujan kumulatif sebelum masuk jendela tanam.",
+          kicker: "Timeline singkat",
+          tone: "olive",
+          why: "Yang paling aman sekarang bukan langsung tanam, tetapi bergerak bertahap sambil membaca kestabilan hujan mingguan.",
+          items: [
+            { label: "Minggu ini", body: "Tahan semai. Lanjut persiapan lahan dan cek kelembapan tanah, belum perlu tebar benih." },
+            { label: "7 hari lagi", body: "Cek hujan kumulatif. Kalau hujan sudah lebih merata, mulai siapkan persemaian kecil sebagai uji aman." },
+            { label: "14 hari lagi", body: "Mulai semai bila hujan stabil dan prakiraan mingguan tidak menunjukkan jeda kering panjang." },
+          ],
+        },
+        {
+          lbl: "Konteks ENSO",
+          preview: "Fase El Nino lemah masih cukup untuk menggeser awal musim dari pola biasanya.",
+          kicker: "Latar iklim",
+          tone: "blue",
+          why: "Saat fase El Nino aktif, awal musim hujan sering mundur melewati ambang waspada. Karena itu kalender tanam lebih aman dibaca sebagai panduan adaptif, bukan tanggal tetap.",
+          items: [
+            { label: "Fase saat ini", body: "El Nino lemah dengan ONI sekitar +0.8 masih memberi tekanan pada awal musim." },
+            { label: "Pola umum", body: "Dalam data 30 tahun, kejadian El Nino cenderung mendorong onset hujan lebih lambat." },
+            { label: "Implikasi", body: "Prioritaskan cek prakiraan mingguan sebelum masuk keputusan semai skala penuh." },
+          ],
+        },
+      ];
+      return (
+        <div className="screen mangsa-app-theme" data-screen-label="Drift Musim Hujan" style={appTheme}>
+          <TopBar activeMangsa={activeMangsa}/>
+          <div className="body body-drift">
+            <Reveal delay={0} threshold={0.04} rootMargin="0px 0px -4% 0px"><MangsaActiveStrip n={activeMangsa} label="Mangsa Berjalan"/></Reveal>
+            <Reveal delay={0} threshold={0.06} rootMargin="0px 0px -6% 0px"><ClimateHero activeMangsa={activeMangsa} heroCards={heroCards} activeStrip={activeStrip} onOpenStrip={(key) => { setActiveStrip(key); setPickedSheet(heroStripSheets[key]); }}/></Reveal>
+            <Reveal delay={30} threshold={0.06} rootMargin="0px 0px -6% 0px"><InsightTicker activeMangsa={activeMangsa}/></Reveal>
+            <Reveal delay={60} threshold={0.06} rootMargin="0px 0px -6% 0px"><SectionHeadSimple eyebrow="Bacaan Minggu Ini" title="Ringkasan lapangan" pill="Update cepat"/></Reveal>
+            <Reveal delay={70} threshold={0.06} rootMargin="0px 0px -6% 0px"><AlertBanner/></Reveal>
+            <Reveal delay={100} threshold={0.06} rootMargin="0px 0px -8% 0px"><EnsoCard/></Reveal>
+            <Reveal delay={120} threshold={0.12} rootMargin="0px 0px -16% 0px"><SectionHeadSimple eyebrow="Riwayat Iklim" title="Drift 1995 - 2025" pill="31 tahun"/></Reveal>
+            <Reveal delay={0} threshold={0.12} rootMargin="0px 0px -16% 0px"><DriftChart/></Reveal>
+            <Reveal delay={30} threshold={0.08} rootMargin="0px 0px -10% 0px"><SectionHeadSimple eyebrow="Langkah Praktis" title="Apa yang perlu dibaca" pill="Buka detail" onPillClick={() => setPickedSheet(quickCards[0])}/></Reveal>
+            <Reveal delay={40} threshold={0.08} rootMargin="0px 0px -10% 0px"><QuickSheets cards={quickCards} onPick={setPickedSheet}/></Reveal>
+            <Reveal delay={60} threshold={0.08} rootMargin="0px 0px -10% 0px"><StatsCarousel onPick={setPickedSheet}/></Reveal>
+            <div className="footer-spacer"/>
+          </div>
+          <AppNav/>
+          <ClimatePopup sheet={pickedSheet} onClose={() => { setPickedSheet(null); setActiveStrip(null); }}/>
+        </div>
+      );
+    }
+
+    function Mounted() {
+      return (
+        <IOSDevice width={402} height={874}>
+          <App/>
+        </IOSDevice>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Mounted/>);
+  </script>
+</body>
+</html>

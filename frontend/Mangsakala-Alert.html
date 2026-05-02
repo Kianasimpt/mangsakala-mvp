@@ -1,0 +1,565 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mangsakala - Peringatan Onset</title>
+<link rel="stylesheet" href="styles.css?v=15" />
+<link rel="stylesheet" href="almanac.css?v=13" />
+<link rel="stylesheet" href="drift.css?v=16" />
+<link rel="stylesheet" href="alert.css?v=21" />
+<style>
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at top, #2a1f15 0%, #160e08 80%);
+    display: grid; place-items: center; padding: 24px; overflow: auto;
+  }
+  .stage { width: 402px; height: 874px; flex-shrink: 0; }
+  /* tighter, more readable alert refinements */
+  .ab-title { font-size: 17px; line-height: 1.18; }
+  .ab-num { font-size: 24px; }
+  .ab-body { font-size: 13px; line-height: 1.5; }
+  .ab-list li { font-size: 12.5px; line-height: 1.45; }
+  .ec-phase-name { font-size: 16px; }
+</style>
+</head>
+<body>
+  <div id="root" class="stage"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="mangsa-shared.jsx?v=9"></script>
+  <script type="text/babel" data-presets="react">
+    const { useState } = React;
+    const ACTIVE_MANGSA = 5;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "severity": "high",
+      "days": 13,
+      "location": "Sleman, DIY",
+      "updatedAgo": "2 jam lalu",
+      "onset": "Kalima · 28 Okt",
+      "bodyText": "Onset musim hujan tertunda dari kalender tradisional Pranata Mangsa. Tunda semai padi sampai jendela tanam adaptif.",
+      "rec1": "Tunda semai padi 14 hari, gunakan jendela adaptif sistem.",
+      "rec2": "Pertimbangkan varietas tahan kering: Inpago 8 atau Situ Bagendit.",
+      "rec3": "Siapkan irigasi cadangan dan pantau ramalan BMKG mingguan.",
+      "ensoPhase": "El Nino Lemah",
+      "ensoSub": "Fase pemanasan permukaan laut",
+      "oni": 0.8,
+      "ensoSource": "NOAA · Apr 2026",
+      "implMin": 10,
+      "implMax": 25,
+      "implRegion": "Jawa Tengah & DIY"
+    }/*EDITMODE-END*/;
+
+    /* ===== ICONS ===== */
+    const Tri = ({s=22,c="#fff"}) => (
+      <svg viewBox="0 0 24 24" width={s} height={s} fill="none" stroke={c} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <path d="M12 9v4"/><path d="M12 17h.01"/>
+      </svg>
+    );
+    const Back = () => (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#F5E6D3" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    );
+    const Bookmark = () => (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#F5E6D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+    );
+    const Clock = ({c="#8A7657"}) => (
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+      </svg>
+    );
+    const Pin = ({c="#8A7657"}) => (
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke={c} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+      </svg>
+    );
+    const Check = ({c="#fff"}) => (
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke={c} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 6L9 17l-5-5"/>
+      </svg>
+    );
+    const ShareIco = ({s=16,c="currentColor"}) => (
+      <svg viewBox="0 0 24 24" width={s} height={s} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+        <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
+      </svg>
+    );
+    const BookmarkFill = ({c="#7fcc60"}) => (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill={c} stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+    );
+
+    function fmt(n) {
+      if (n === null || n === undefined) return "0";
+      const sign = n > 0 ? "+" : (n < 0 ? "-" : "");
+      return sign + Math.abs(n).toFixed(1).replace(".", ",");
+    }
+
+    function TopBar({ activeMangsa, severity, days, onSave, saved }) {
+      const info = MANGSA_INFO[activeMangsa] || MANGSA_INFO[ACTIVE_MANGSA];
+      return (
+        <div className="tb">
+          <div className="tb-row">
+            <div className="tb-greet">
+              <div className="tb-hello">Peringatan aktif musim hujan</div>
+              <div className="tb-name">{info.name} <b>Alert Center</b></div>
+            </div>
+            <div className="tb-actions">
+              <button className="tb-btn" aria-label="Kembali ke Iklim" onClick={() => window.location.href = "Mangsakala-Drift.html"}><Back/></button>
+              <button className="tb-btn" aria-label={saved ? "Tersimpan" : "Simpan peringatan"} onClick={onSave} style={{position:"relative"}}>
+                {saved ? <BookmarkFill/> : <Bookmark/>}
+                {saved && <span style={{position:"absolute",bottom:-18,left:"50%",transform:"translateX(-50%)",fontSize:9,fontWeight:700,color:"#7fcc60",whiteSpace:"nowrap",pointerEvents:"none"}}>Tersimpan</span>}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function SummaryStrip({ activeMangsa, severity, days }) {
+      const info = MANGSA_INFO[activeMangsa] || MANGSA_INFO[ACTIVE_MANGSA];
+      return (
+        <div className="tb-strip alert-summary-strip">
+          <div className="tb-strip-cell tb-strip-main">
+            <span className="tb-strip-lbl">Status</span>
+            <span className="tb-strip-val">{severity === "high" ? "Waspada tinggi" : "Waspada sedang"}</span>
+            <span className="tb-strip-note">onset bergeser</span>
+          </div>
+          <div className="tb-strip-cell">
+            <span className="tb-strip-lbl">Mundur</span>
+            <span className="tb-strip-val"><span className="em">{days} hari</span></span>
+            <span className="tb-strip-note">adaptif</span>
+          </div>
+          <div className="tb-strip-cell">
+            <span className="tb-strip-lbl">Mangsa</span>
+            <span className="tb-strip-val">{info.name}</span>
+            <span className="tb-strip-note">{info.musim}</span>
+          </div>
+        </div>
+      );
+    }
+
+    function InsightTicker({ days }) {
+      return (
+        <div className="tanda">
+          <div className="tanda-pill">TINDAKAN CEPAT</div>
+          <div className="tanda-text">
+            <b>Tunda semai sekitar {days} hari</b> sambil rapikan lahan, cek hujan mingguan, dan siapkan opsi varietas cadangan.
+          </div>
+        </div>
+      );
+    }
+
+    function SectionHeadSimple({ eyebrow, title, pill }) {
+      return (
+        <div className="sh">
+          <div className="sh-l">
+            <div className="sh-eyebrow">{eyebrow}</div>
+            <div className="sh-title">{title}</div>
+          </div>
+          {pill ? <div className="sim-pill">{pill}</div> : null}
+        </div>
+      );
+    }
+
+    function AlertBanner({ t, severity, onOpen, activeMangsa }) {
+      const isHigh = severity === "high";
+      const risk = Math.min(100, Math.max(18, (Number(t.days) || 0) * 3.8 + (isHigh ? 22 : 6)));
+      return (
+        <button type="button" className={"ab ab-summary " + (isHigh ? "ab-high" : "ab-medium")} onClick={onOpen}>
+          <MangsaOrnament n={activeMangsa}/>
+          <div className="ab-grain" aria-hidden="true"/>
+          <div className="ab-stripe" aria-hidden="true"/>
+          <div className="ab-top">
+            <div className="ab-ico"><Tri s={22}/></div>
+            <div className="ab-titles">
+              <div className="ab-eyebrow">Peringatan Onset Musim Hujan</div>
+              <div className="ab-title">
+                Onset diprediksi mundur <span className="ab-num">{t.days}</span> hari
+              </div>
+            </div>
+            <div className={"ab-badge " + (isHigh ? "ab-badge-high" : "ab-badge-medium")}>
+              {isHigh ? "TINGGI" : "SEDANG"}
+            </div>
+          </div>
+
+          <div className="ab-meta">
+            <div className="ab-meta-row"><Pin c="rgba(245,230,211,0.85)"/><span>{t.location}</span></div>
+            <span className="ab-meta-sep"/>
+            <div className="ab-meta-row"><Clock c="rgba(245,230,211,0.85)"/><span>Diperbarui {t.updatedAgo}</span></div>
+          </div>
+
+          <div className="risk-meter">
+            <div className="risk-meter-head">
+              <span>Risiko awal musim</span>
+              <b>{Math.round(risk)}%</b>
+            </div>
+            <div className="risk-track">
+              <div className="risk-fill" style={{width: `${risk}%`}}/>
+              <div className="risk-pulse" style={{left: `${risk}%`}}/>
+            </div>
+          </div>
+          <div className="ab-summary-foot">
+            <span>Jendela adaptif: <b>{t.onset}</b></span>
+            <strong>Lihat detail</strong>
+          </div>
+        </button>
+      );
+    }
+
+    function AlertDetailSheet({ open, t, severity, checked, toggleCheck, onClose }) {
+      const [isOpen, setIsOpen] = React.useState(false);
+      React.useEffect(() => {
+        if (!open) {
+          setIsOpen(false);
+          return;
+        }
+        const raf = requestAnimationFrame(() => setIsOpen(true));
+        return () => cancelAnimationFrame(raf);
+      }, [open]);
+      const isHigh = severity === "high";
+      const recs = [t.rec1, t.rec2, t.rec3].filter(r => r && r.trim());
+      const risk = Math.min(100, Math.max(18, (Number(t.days) || 0) * 3.8 + (isHigh ? 22 : 6)));
+      if (!open) return null;
+      return (
+        <div className={"alert-detail-back " + (isOpen ? "is-open" : "")} onClick={onClose}>
+          <div className="alert-detail-sheet" onClick={e => e.stopPropagation()}>
+            <div className="alert-detail-grab"/>
+            <div className="alert-detail-head">
+              <div>
+                <div className="ab-eyebrow">Detail Peringatan</div>
+                <div className="alert-detail-title">Onset mundur {t.days} hari</div>
+              </div>
+              <button type="button" className="sev-close" onClick={onClose} aria-label="Tutup">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+
+            <div className={"ab alert-detail-hero " + (isHigh ? "ab-high" : "ab-medium")}>
+              <div className="ab-top">
+                <div className="ab-ico"><Tri s={22}/></div>
+                <div className="ab-titles">
+                  <div className="ab-eyebrow">Peringatan Onset Musim Hujan</div>
+                  <div className="ab-title">Status {isHigh ? "tinggi" : "sedang"}</div>
+                </div>
+                <div className={"ab-badge " + (isHigh ? "ab-badge-high" : "ab-badge-medium")}>{isHigh ? "TINGGI" : "SEDANG"}</div>
+              </div>
+              <div className="ab-body">
+                {t.bodyText} Jendela tanam adaptif: <b>{t.onset}</b>.
+              </div>
+              <div className="risk-meter">
+                <div className="risk-meter-head">
+                  <span>Risiko awal musim</span>
+                  <b>{Math.round(risk)}%</b>
+                </div>
+                <div className="risk-track">
+                  <div className="risk-fill" style={{width: `${risk}%`}}/>
+                  <div className="risk-pulse" style={{left: `${risk}%`}}/>
+                </div>
+              </div>
+            </div>
+
+            <div className="ab-recs alert-detail-recs">
+              <div className="ab-recs-head">Checklist tindakan</div>
+              <ul className="ab-list">
+                {recs.map((r, i) => (
+                  <li key={i} className={checked[i] ? "is-done" : ""} onClick={() => toggleCheck(i)}>
+                    <span className="ab-bul"><Check c={checked[i] ? "#7A8450" : "currentColor"}/></span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function EnsoContextCard({ t }) {
+      const oni = Number(t.oni) || 0;
+      const clamped = Math.max(-3, Math.min(3, oni));
+      const pos = ((clamped + 3) / 6) * 100;
+      // pick phase color based on ONI
+      let pColor = "#A8412C";
+      let pBg = "#FBE9E2";
+      if (oni < -0.5) { pColor = "#2F5D7A"; pBg = "#E2EDF4"; }
+      else if (oni < 0.5) { pColor = "#7A8450"; pBg = "#EEF0E2"; }
+      return (
+        <div className="ec">
+          <div className="ec-head">
+            <div className="ec-eyebrow">Konteks ENSO</div>
+            <div className="ec-stamp">{t.ensoSource}</div>
+          </div>
+          <div className="ec-row">
+            <div className="ec-phase">
+              <div className="ec-phase-icon" style={{background: pBg}}>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke={pColor} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="4"/>
+                  <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+                </svg>
+              </div>
+              <div>
+                <div className="ec-phase-name">{t.ensoPhase}</div>
+                <div className="ec-phase-sub">{t.ensoSub}</div>
+              </div>
+            </div>
+            <div className="ec-oni">
+              <div className="ec-oni-lbl">ONI</div>
+              <div className="ec-oni-val" style={{color: pColor}}>{fmt(oni)}</div>
+              <div className="ec-oni-unit">°C anomali</div>
+            </div>
+          </div>
+
+          <div className="ec-bar-wrap">
+            <div className="ec-bar">
+              <div className="ec-bar-seg ec-bar-cold"/>
+              <div className="ec-bar-seg ec-bar-cool"/>
+              <div className="ec-bar-seg ec-bar-neutral"/>
+              <div className="ec-bar-seg ec-bar-warm"/>
+              <div className="ec-bar-seg ec-bar-hot"/>
+              <div className="ec-bar-marker" style={{left: `${pos}%`}}>
+                <div className="ec-bar-pin"/>
+                <div className="ec-bar-tip">{fmt(oni)}</div>
+              </div>
+            </div>
+            <div className="ec-bar-axis">
+              <span>La Nina Kuat</span>
+              <span>Netral</span>
+              <span>El Nino Kuat</span>
+            </div>
+          </div>
+
+          <div className="ec-impl">
+            <div className="ec-impl-dot"/>
+            <div className="ec-impl-text">
+              Fase ini berkaitan dengan <b>onset hujan tertunda {t.implMin}-{t.implMax} hari</b> di {t.implRegion} menurut riwayat 1995-2025.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function SeverityControl({ severity, setSeverity, days }) {
+      const items = [
+        { key: "medium", label: "Sedang", sub: "Pantau 7 hari" },
+        { key: "high", label: "Tinggi", sub: "Tunda semai" },
+      ];
+      return (
+        <div className="severity-card">
+          <div className="sev-copy">
+            <div className="sev-eyebrow">Mode Peringatan</div>
+            <div className="sev-title">{days} hari mundur</div>
+          </div>
+          <div className="sev-switch">
+            {items.map(item => (
+              <button key={item.key} type="button" className={"sev-choice " + (severity === item.key ? "is-on" : "")} onClick={() => setSeverity(item.key)}>
+                <span>{item.label}</span>
+                <small>{item.sub}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function ActionTimeline({ severity }) {
+      const urgent = severity === "high";
+      const rows = [
+        { day: "Hari ini", title: urgent ? "Tunda semai" : "Cek ulang lahan", text: urgent ? "Jangan mulai semai sebelum hujan stabil." : "Pastikan tanah mulai lembab dan saluran siap." },
+        { day: "+7 hari", title: "Pantau BMKG", text: "Lihat pembaruan hujan mingguan dan fase ENSO." },
+        { day: "+14 hari", title: "Buka jendela adaptif", text: "Mulai tanam saat risiko turun dan air cukup." },
+      ];
+      return (
+        <div className="action-timeline">
+          <div className="tl-head">
+            <div className="tl-eyebrow">Rencana dekat</div>
+            <div className="tl-title">Urutan tindakan petani</div>
+          </div>
+          {rows.map((row, i) => (
+            <div className="tl-row" key={row.day} style={{animationDelay: `${120 + i * 90}ms`}}>
+              <div className="tl-dot">{i + 1}</div>
+              <div>
+                <div className="tl-day">{row.day}</div>
+                <div className="tl-row-title">{row.title}</div>
+                <div className="tl-text">{row.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function AppNav() {
+      const items = [
+        { key: "mangsa", lbl: "Mangsa", href: "Mangsakala-Almanac.html", svg: <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></> },
+        { key: "iklim", lbl: "Iklim", href: "Mangsakala-Drift.html", svg: <><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></> },
+        { key: "alert", lbl: "Waspada", href: "Mangsakala-Alert.html", svg: <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></> },
+      ];
+      return (
+        <div className="app-tabbar">
+          {items.map(it => (
+            <button
+              key={it.key}
+              className={"app-tab " + (it.key === "alert" ? "is-active" : "")}
+              onClick={() => { if (it.key !== "alert") window.location.href = it.href; }}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">{it.svg}</svg>
+              <span>{it.lbl}</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    function useReveal() {
+      const ref = React.useRef(null);
+      const [shown, setShown] = React.useState(false);
+      React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.ownerDocument.body.classList.add("reveal-ready");
+        if (!("IntersectionObserver" in window)) {
+          setShown(true);
+          return;
+        }
+        const scroller = el.closest('.body-alert') || el.parentElement;
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(e => {
+            if (e.isIntersecting) {
+              setShown(true);
+              io.disconnect();
+            }
+          });
+        }, { root: scroller, threshold: 0.18, rootMargin: '0px 0px -24% 0px' });
+        io.observe(el);
+        return () => io.disconnect();
+      }, []);
+      return { ref, className: "soft-reveal " + (shown ? "soft-reveal-in" : "") };
+    }
+    function Reveal({ children, delay = 0 }) {
+      const { ref, className } = useReveal();
+      return <div ref={ref} className={className} style={{transitionDelay: `${delay}ms`, animationDelay: `${delay}ms`}}>{children}</div>;
+    }
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const [severity, setSeverity] = useState(t.severity || "high");
+      const [alertDetailOpen, setAlertDetailOpen] = useState(false);
+      const [checked, setChecked] = useState({});
+      const [saved, setSaved] = useState(() => !!localStorage.getItem('mangsakala_saved_alert'));
+      const [shared, setShared] = useState(false);
+      const toggleCheck = (i) => setChecked(prev => ({...prev, [i]: !prev[i]}));
+      const activeMangsa = getStoredActiveMangsa(ACTIVE_MANGSA);
+      const appTheme = mangsaThemeStyle(activeMangsa);
+
+      const handleSave = () => {
+        const alertData = { ...t, severity, savedAt: new Date().toISOString() };
+        localStorage.setItem('mangsakala_saved_alert', JSON.stringify(alertData));
+        setSaved(true);
+      };
+
+      const handleShare = () => {
+        const recs = [t.rec1, t.rec2, t.rec3].filter(r => r && r.trim());
+        const text = `Peringatan Mangsakala — ${t.location}\nOnset hujan mundur ${t.days} hari. Jendela adaptif: ${t.onset}.\n${t.bodyText}\n\nLangkah:\n${recs.map((r,i)=>`${i+1}. ${r}`).join('\n')}`;
+        if (navigator.share) {
+          navigator.share({ title: 'Peringatan Mangsakala', text, url: window.location.href }).catch(() => {});
+        } else {
+          navigator.clipboard.writeText(text).then(() => {
+            setShared(true);
+            setTimeout(() => setShared(false), 2500);
+          }).catch(() => {});
+        }
+      };
+
+      return (
+        <div className="screen mangsa-app-theme" data-screen-label="Pusat Peringatan" style={appTheme}>
+          <TopBar activeMangsa={activeMangsa} severity={severity} days={t.days} onSave={handleSave} saved={saved}/>
+          <div className="body body-alert">
+            <Reveal delay={0}><MangsaActiveStrip n={activeMangsa} label="Mangsa Berjalan"/></Reveal>
+            <Reveal delay={50}><SeverityControl severity={severity} setSeverity={setSeverity} days={t.days}/></Reveal>
+            <Reveal delay={120}><AlertBanner t={t} severity={severity} activeMangsa={activeMangsa} onOpen={() => setAlertDetailOpen(true)}/></Reveal>
+            <Reveal delay={140}><SummaryStrip activeMangsa={activeMangsa} severity={severity} days={t.days}/></Reveal>
+            <Reveal delay={150}><InsightTicker days={t.days}/></Reveal>
+            <Reveal delay={170}><SectionHeadSimple eyebrow="Konteks Musim" title="ENSO dan dampaknya" pill="NOAA"/></Reveal>
+            <Reveal delay={190}><EnsoContextCard t={t}/></Reveal>
+            <Reveal delay={230}><SectionHeadSimple eyebrow="Urutan Tindak" title="Apa yang dikerjakan dulu" pill="3 langkah"/></Reveal>
+            <Reveal delay={250}><ActionTimeline severity={severity}/></Reveal>
+            <Reveal delay={300}><div className="ab-actions">
+              <button className="btn-primary" onClick={() => window.location.href = "Mangsakala-Almanac.html"}>Lihat Jendela Adaptif</button>
+              <button className="btn-ghost" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}} onClick={handleShare}>
+                <ShareIco s={15} c="currentColor"/>
+                {shared ? "Tersalin ke clipboard!" : "Bagikan Peringatan"}
+              </button>
+              <button className="btn-ghost" onClick={() => window.location.href = "Mangsakala-Drift.html"}>Lihat Data Iklim</button>
+            </div></Reveal>
+            <div className="footer-spacer"/>
+          </div>
+
+          <AppNav/>
+          <AlertDetailSheet open={alertDetailOpen} t={t} severity={severity} checked={checked} toggleCheck={toggleCheck} onClose={() => setAlertDetailOpen(false)}/>
+          <TweaksPanel title="Tweaks">
+            <TweakSection title="Banner peringatan">
+              <TweakRadio label="Tingkat" value={t.severity} options={[
+                {value: "high", label: "Tinggi"},
+                {value: "medium", label: "Sedang"},
+              ]} onChange={v => setTweak("severity", v)}/>
+              <TweakSlider label="Hari mundur" value={t.days} min={1} max={45} step={1}
+                onChange={v => setTweak("days", v)}/>
+              <TweakText label="Lokasi" value={t.location}
+                onChange={v => setTweak("location", v)}/>
+              <TweakText label="Diperbarui" value={t.updatedAgo}
+                onChange={v => setTweak("updatedAgo", v)}/>
+              <TweakText label="Jendela tanam" value={t.onset}
+                onChange={v => setTweak("onset", v)}/>
+              <TweakText label="Isi pesan" value={t.bodyText} multiline
+                onChange={v => setTweak("bodyText", v)}/>
+            </TweakSection>
+
+            <TweakSection title="Rekomendasi">
+              <TweakText label="1." value={t.rec1} multiline
+                onChange={v => setTweak("rec1", v)}/>
+              <TweakText label="2." value={t.rec2} multiline
+                onChange={v => setTweak("rec2", v)}/>
+              <TweakText label="3." value={t.rec3} multiline
+                onChange={v => setTweak("rec3", v)}/>
+            </TweakSection>
+
+            <TweakSection title="Konteks ENSO">
+              <TweakText label="Fase" value={t.ensoPhase}
+                onChange={v => setTweak("ensoPhase", v)}/>
+              <TweakText label="Sub-label" value={t.ensoSub}
+                onChange={v => setTweak("ensoSub", v)}/>
+              <TweakSlider label="ONI (°C)" value={t.oni} min={-3} max={3} step={0.1}
+                onChange={v => setTweak("oni", v)}/>
+              <TweakText label="Sumber" value={t.ensoSource}
+                onChange={v => setTweak("ensoSource", v)}/>
+              <TweakSlider label="Onset min (hari)" value={t.implMin} min={0} max={40} step={1}
+                onChange={v => setTweak("implMin", v)}/>
+              <TweakSlider label="Onset maks (hari)" value={t.implMax} min={0} max={60} step={1}
+                onChange={v => setTweak("implMax", v)}/>
+              <TweakText label="Wilayah" value={t.implRegion}
+                onChange={v => setTweak("implRegion", v)}/>
+            </TweakSection>
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    function Mounted() {
+      return <IOSDevice width={402} height={874}><App/></IOSDevice>;
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Mounted/>);
+  </script>
+</body>
+</html>

@@ -1,0 +1,766 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mangsakala - Almanac</title>
+<link rel="stylesheet" href="styles.css?v=15" />
+<link rel="stylesheet" href="almanac.css?v=13" />
+<link rel="stylesheet" href="carousel.css?v=12" />
+<style>
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at top, #2a1f15 0%, #160e08 80%);
+    display: grid; place-items: center; padding: 24px; overflow: auto;
+  }
+  .stage { width: 402px; height: 874px; flex-shrink: 0; }
+  .screen { background: #FAF1E2; }
+</style>
+</head>
+<body>
+  <div id="root" class="stage"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="mangsa-shared.jsx?v=9"></script>
+  <script type="text/babel" data-presets="react">
+    const { useState, useMemo } = React;
+
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "locationQuery": "",
+      "forceNoResults": false,
+      "mapsOffline": false,
+      "distanceKm": 4,
+      "rainTone": "normal",
+      "autoOpenLocation": false,
+      "activeMangsa": 5,
+      "activeDay": 16
+    }/*EDITMODE-END*/;
+
+    const MANGSA = [
+      { n: 1,  name: "Kasa",      tradisional: "22 Jun - 1 Agu",  adaptif: "18 Jun - 28 Jul",  geser: -4,  musim: "Mareng",   tanda: "Daun jatuh, tanah retak" },
+      { n: 2,  name: "Karo",      tradisional: "2 Agu - 24 Agu",  adaptif: "29 Jul - 21 Agu",  geser: -3,  musim: "Mareng",   tanda: "Pohon randu berbuah" },
+      { n: 3,  name: "Katelu",    tradisional: "25 Agu - 17 Sep", adaptif: "22 Agu - 13 Sep",  geser: -4,  musim: "Mareng",   tanda: "Umbi mulai tumbuh" },
+      { n: 4,  name: "Kapat",     tradisional: "18 Sep - 12 Okt", adaptif: "14 Sep - 9 Okt",   geser: -4,  musim: "Labuh",    tanda: "Burung kembali bersarang" },
+      { n: 5,  name: "Kalima",    tradisional: "13 Okt - 8 Nov",  adaptif: "10 Okt - 4 Nov",   geser: -4,  musim: "Labuh",    tanda: "Hujan pertama turun" },
+      { n: 6,  name: "Kanem",     tradisional: "9 Nov - 21 Des",  adaptif: "5 Nov - 16 Des",   geser: -5,  musim: "Labuh",    tanda: "Buah-buahan matang" },
+      { n: 7,  name: "Kapitu",    tradisional: "22 Des - 2 Feb",  adaptif: "17 Des - 28 Jan",  geser: -5,  musim: "Rendheng", tanda: "Hujan deras, banjir" },
+      { n: 8,  name: "Kawolu",    tradisional: "3 Feb - 28 Feb",  adaptif: "29 Jan - 23 Feb",  geser: -5,  musim: "Rendheng", tanda: "Padi bunting" },
+      { n: 9,  name: "Kasanga",   tradisional: "1 Mar - 25 Mar",  adaptif: "24 Feb - 20 Mar",  geser: -5,  musim: "Rendheng", tanda: "Padi menguning" },
+      { n: 10, name: "Kasadasa",  tradisional: "26 Mar - 18 Apr", adaptif: "21 Mar - 13 Apr",  geser: -5,  musim: "Mareng",   tanda: "Burung bersarang" },
+      { n: 11, name: "Desta",     tradisional: "19 Apr - 11 Mei", adaptif: "14 Apr - 6 Mei",   geser: -5,  musim: "Mareng",   tanda: "Lebah berkumpul" },
+      { n: 12, name: "Sadha",     tradisional: "12 Mei - 21 Jun", adaptif: "7 Mei - 17 Jun",   geser: -5,  musim: "Mareng",   tanda: "Air mulai surut" },
+    ];
+    const ACTIVE = 5;
+    const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+    /* MANGSA_THEME + MangsaOrnament come from mangsa-shared.jsx */
+
+    /* tiny seeded sparkline values per mangsa (drift trend) */
+    const SPARKS = {
+      1: [-2,1,0,3,-1,2,4,2,3], 2: [0,-1,2,1,3,2,4,3,5], 3: [-1,1,0,2,4,3,5,4,6],
+      4: [1,2,4,3,5,4,6,5,7], 5: [3,5,4,7,6,9,8,11,12], 6: [2,4,3,6,5,8,7,10,11],
+      7: [4,3,6,5,8,7,10,9,12], 8: [3,5,4,7,6,9,8,11,10], 9: [2,4,3,6,5,8,7,10,11],
+      10: [1,3,2,5,4,7,6,9,10], 11: [0,2,1,4,3,6,5,8,9], 12: [-1,1,0,3,2,5,4,7,8],
+    };
+
+    function Sparkline({ data, isActive }) {
+      const w = 96, h = 22;
+      const min = Math.min(...data, -2), max = Math.max(...data, 2);
+      const sx = i => (i / (data.length - 1)) * w;
+      const sy = v => h - ((v - min) / (max - min || 1)) * h;
+      const baselineY = sy(0);
+      const path = data.map((v,i) => `${i===0?"M":"L"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(" ");
+      return (
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+          <line className="baseline" x1="0" y1={baselineY} x2={w} y2={baselineY}
+                stroke={isActive ? "rgba(245,230,211,0.35)" : "#E8D5B7"} strokeWidth="1" strokeDasharray="2 2"/>
+          <path d={path} fill="none"
+                stroke={isActive ? "#F5E6D3" : "#C8553D"}
+                strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx={sx(data.length-1)} cy={sy(data[data.length-1])} r="2.2"
+                  fill={isActive ? "#F5E6D3" : "#C8553D"}/>
+        </svg>
+      );
+    }
+
+    /* ===== ICONS ===== */
+    const Bell = () => (
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#F5E6D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+      </svg>
+    );
+    const Pin = () => (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#F5E6D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+      </svg>
+    );
+    const Sun = () => (
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E8B98C" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="4" fill="#E8B98C" stroke="none"/>
+        <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+      </svg>
+    );
+    const Drop = () => (
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="#7AA8D9" stroke="#7AA8D9" strokeWidth="1.6" strokeLinejoin="round">
+        <path d="M12 2.5C12 2.5 5 10.5 5 15a7 7 0 0 0 14 0c0-4.5-7-12.5-7-12.5z"/>
+      </svg>
+    );
+    const Wind = () => (
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#E8B98C" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 8h12a3 3 0 1 0-3-3M3 14h17a3 3 0 1 1-3 3M3 11h7"/>
+      </svg>
+    );
+    const Sprout = () => (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#F5E6D3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7 20h10"/>
+        <path d="M12 20V10"/>
+        <path d="M12 10C12 6 9 4 5 5c-1 4 2 6 7 5z"/>
+        <path d="M12 12c0-3 2-5 5-4 1 3-2 5-5 4z"/>
+      </svg>
+    );
+    const ArrR = () => (
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6"/>
+      </svg>
+    );
+    const ArrL = () => (
+      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    );
+
+    /* ===== Wheel ===== */
+    function MangsaWheel({ active }) {
+      const cx = 55, cy = 55, r = 44, rIn = 32;
+      const slice = 2 * Math.PI / 12;
+      const wedges = MANGSA.map((m, i) => {
+        const a0 = -Math.PI/2 + i * slice - slice/2;
+        const a1 = -Math.PI/2 + i * slice + slice/2;
+        const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+        const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+        const x0i = cx + rIn * Math.cos(a0), y0i = cy + rIn * Math.sin(a0);
+        const x1i = cx + rIn * Math.cos(a1), y1i = cy + rIn * Math.sin(a1);
+        const path = `M${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1} L${x1i},${y1i} A${rIn},${rIn} 0 0 0 ${x0i},${y0i} Z`;
+        const isActive = m.n === active;
+        return (
+          <path key={m.n} d={path}
+                fill={isActive ? "#F5E6D3" : "rgba(245,230,211,0.10)"}
+                stroke="rgba(245,230,211,0.18)" strokeWidth="0.5"/>
+        );
+      });
+      // tick marks for each mangsa
+      const ticks = MANGSA.map((m, i) => {
+        const a = -Math.PI/2 + i * slice;
+        const x = cx + (r+3) * Math.cos(a), y = cy + (r+3) * Math.sin(a);
+        return <circle key={m.n} cx={x} cy={y} r="1" fill="rgba(245,230,211,0.5)"/>;
+      });
+      return (
+        <svg viewBox="0 0 110 110" width="110" height="110">
+          {wedges}
+          {ticks}
+          <circle cx={cx} cy={cy} r={rIn-2} fill="rgba(0,0,0,0.18)"/>
+          <text x={cx} y={cy-3} textAnchor="middle" fontSize="9" fontWeight="700"
+                fill="rgba(245,230,211,0.7)" letterSpacing="1">MANGSA</text>
+          <text x={cx} y={cy+12} textAnchor="middle" fontFamily="Bricolage Grotesque, serif"
+                fontSize="20" fontWeight="700" fill="#F5E6D3">{ROMAN[active-1]}</text>
+        </svg>
+      );
+    }
+
+    /* ===== TopBar ===== */
+    function TopBar({ onNotifOpen, onLocationOpen, hasNotif, region }) {
+      return (
+        <div className="tb">
+          <svg className="tb-stars" viewBox="0 0 360 80" preserveAspectRatio="none">
+            <circle cx="40" cy="20" r="0.7" fill="#F5E6D3"/>
+            <circle cx="120" cy="40" r="0.5" fill="#F5E6D3"/>
+            <circle cx="220" cy="15" r="0.6" fill="#F5E6D3"/>
+            <circle cx="290" cy="45" r="0.5" fill="#F5E6D3"/>
+            <circle cx="330" cy="22" r="0.7" fill="#F5E6D3"/>
+            <circle cx="80" cy="60" r="0.4" fill="#F5E6D3"/>
+            <circle cx="180" cy="65" r="0.5" fill="#F5E6D3"/>
+          </svg>
+          <div className="tb-row">
+            <div className="tb-greet">
+              <div className="tb-hello">Sugeng enjing,</div>
+              <div className="tb-name">Pak <b>Wahyudi</b></div>
+            </div>
+            <div className="tb-actions">
+              <button className="tb-btn" aria-label="Lokasi" onClick={onLocationOpen}><Pin/></button>
+              <button className="tb-btn" aria-label="Notifikasi" onClick={onNotifOpen}>
+                <Bell/>
+                {hasNotif && <span className="tb-bdot"/>}
+              </button>
+            </div>
+          </div>
+          <div className="tb-strip">
+            <div className="tb-strip-cell tb-strip-main">
+              <span className="tb-strip-lbl">Suhu hari ini</span>
+              <span className="tb-strip-val tb-weather-temp"><Sun/><span className="deg">28°C</span></span>
+              <span className="tb-strip-note">Cerah</span>
+            </div>
+            <div className="tb-strip-cell">
+              <span className="tb-strip-lbl">Hujan</span>
+              <span className="tb-strip-val"><Drop/><span className="em">12 mm</span></span>
+              <span className="tb-strip-note">7 hari</span>
+            </div>
+            <div className="tb-strip-cell">
+              <span className="tb-strip-lbl">Angin</span>
+              <span className="tb-strip-val"><Wind/>8 km/j</span>
+              <span className="tb-strip-note">stabil</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function NotificationCenter({ open, onClose, crop, setCrop }) {
+      const [tab, setTab] = useState("notif");
+      const [reminderOn, setReminderOn] = useState(true);
+      const crops = [
+        { key: "padi", name: "Padi", window: "28 Okt - 14 Nov", days: 7, note: "Siapkan persemaian dan cek air irigasi.", tone: "terra" },
+        { key: "jagung", name: "Jagung", window: "3 Nov - 18 Nov", days: 12, note: "Cocok setelah hujan awal stabil.", tone: "olive" },
+        { key: "cabai", name: "Cabai", window: "24 Okt - 6 Nov", days: 3, note: "Perlu bedengan kering dan drainase baik.", tone: "amber" },
+        { key: "kedelai", name: "Kedelai", window: "18 Nov - 2 Des", days: 21, note: "Masih cukup waktu untuk persiapan benih.", tone: "blue" },
+      ];
+      const selected = crops.find(c => c.key === crop) || crops[0];
+      const dueSoon = selected.days <= 7;
+      const notifications = [
+        {
+          title: dueSoon ? `${selected.name} masuk jendela tanam seminggu lagi` : `${selected.name} belum mendesak`,
+          body: dueSoon ? `${selected.window}. ${selected.note}` : `Jendela ${selected.window}. Sistem akan mengingatkan 7 hari sebelumnya.`,
+          tag: dueSoon ? "Prioritas" : "Pantau",
+        },
+        { title: "Kalima sedang berlangsung", body: "Mangsa aktif cocok untuk mulai membaca tanda hujan awal.", tag: "Mangsa" },
+        { title: "ENSO El Nino lemah", body: "Onset hujan bisa mundur. Cocokkan lagi dengan data Iklim.", tag: "Iklim" },
+      ];
+      if (!open) return null;
+      return (
+        <div className="notif-back" onClick={onClose}>
+          <div className="notif-sheet" onClick={e => e.stopPropagation()}>
+            <div className="notif-grab"/>
+            <div className="notif-head">
+              <div>
+                <div className="notif-eyebrow">Pusat Notifikasi</div>
+                <div className="notif-title">Pengingat Tanam</div>
+              </div>
+              <button className="notif-close" onClick={onClose} aria-label="Tutup">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+
+            <div className="notif-tabs">
+              <button className={tab === "notif" ? "is-on" : ""} onClick={() => setTab("notif")}>Notifikasi</button>
+              <button className={tab === "pref" ? "is-on" : ""} onClick={() => setTab("pref")}>Preferensi</button>
+            </div>
+
+            {tab === "notif" ? (
+              <div className="notif-list">
+                <div className={"notif-hero " + (dueSoon ? "is-hot" : "")}>
+                  <div className="notif-bell-mini"><Bell/></div>
+                  <div>
+                    <div className="notif-hero-title">{dueSoon ? "Seminggu lagi siap tanam" : "Pengingat sudah aktif"}</div>
+                    <div className="notif-hero-sub">{selected.name} - {selected.window}</div>
+                  </div>
+                  <div className="notif-days">{selected.days} hari</div>
+                </div>
+                {notifications.map((n, i) => (
+                  <div className="notif-item" key={n.title} style={{animationDelay: `${120 + i * 70}ms`}}>
+                    <div className="notif-dot"/>
+                    <div className="notif-copy">
+                      <div className="notif-item-top">
+                        <b>{n.title}</b>
+                        <span>{n.tag}</span>
+                      </div>
+                      <p>{n.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="pref-pane">
+                <div className="pref-summary">
+                  <div>
+                    <div className="pref-label">Tanaman pilihan</div>
+                    <div className="pref-name">{selected.name}</div>
+                  </div>
+                  <button className={"pref-toggle " + (reminderOn ? "is-on" : "")} onClick={() => setReminderOn(!reminderOn)}>
+                    <span/>
+                  </button>
+                </div>
+                <div className="crop-grid">
+                  {crops.map(c => (
+                    <button key={c.key} className={"crop-card crop-" + c.tone + (crop === c.key ? " is-on" : "")} onClick={() => setCrop(c.key)}>
+                      <span className="crop-name">{c.name}</span>
+                      <span className="crop-window">{c.window}</span>
+                      <span className="crop-days">{c.days} hari lagi</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="pref-note">
+                  {reminderOn ? "Notifikasi akan muncul otomatis saat jendela tanam tinggal 7 hari." : "Pengingat dimatikan, sistem hanya menyimpan preferensi tanaman."}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function LocationPanel({ open, onClose, region, setRegion, tweaks, setTweak }) {
+      const [query, setQuery] = useState("");
+      const regions = [
+        { name: "Sleman, DIY", coord: "-7.7325, 110.4024", rain: "12 mm", status: "Jendela padi dekat", map: [50, 42] },
+        { name: "Bantul, DIY", coord: "-7.8754, 110.3250", rain: "18 mm", status: "Tanah mulai lembab", map: [44, 63] },
+        { name: "Klaten, Jateng", coord: "-7.7059, 110.6066", rain: "9 mm", status: "Pantau 7 hari", map: [67, 45] },
+        { name: "Magelang, Jateng", coord: "-7.4797, 110.2177", rain: "15 mm", status: "Hujan ringan stabil", map: [36, 30] },
+        { name: "Kebumen, Jateng", coord: "-7.6686, 109.6526", rain: "7 mm", status: "Onset mundur", map: [24, 58] },
+        { name: "Karanganyar, Jateng", coord: "-7.5961, 110.9508", rain: "14 mm", status: "Pantau irigasi", map: [77, 36] },
+      ];
+      const effectiveQuery = query || tweaks.locationQuery || "";
+      const filtered = tweaks.forceNoResults ? [] : regions.filter(r => r.name.toLowerCase().includes(effectiveQuery.toLowerCase()));
+      const active = (effectiveQuery && filtered[0]) || regions.find(r => r.name === region) || regions[0];
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(active.coord)}`;
+      if (!open) return null;
+      return (
+        <div className="loc-back" onClick={onClose}>
+          <div className="loc-sheet" onClick={e => e.stopPropagation()}>
+            <div className="notif-grab"/>
+            <div className="notif-head">
+              <div>
+                <div className="notif-eyebrow">Lokasi Sawah</div>
+                <div className="notif-title">Pilih Wilayah</div>
+              </div>
+              <button className="notif-close" onClick={onClose} aria-label="Tutup">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+
+            <div className={"loc-map-card " + (tweaks.mapsOffline ? "is-offline" : "")}>
+              <div className="loc-map-grid">
+                <span/><span/><span/><span/><span/><span/>
+              </div>
+              {filtered.slice(0, 4).map(r => (
+                <span key={r.name} className="loc-mini-pin" style={{left: `${r.map[0]}%`, top: `${r.map[1]}%`}}/>
+              ))}
+              <div className="loc-pin" style={{left: `${active.map[0]}%`, top: `${active.map[1]}%`}}><Pin/></div>
+              {tweaks.mapsOffline && <div className="loc-offline">Maps offline - tampilkan koordinat saja</div>}
+              <div className="loc-map-info">
+                <b>{active.name}</b>
+                <span>{effectiveQuery ? "Hasil pencarian teratas" : "Wilayah aktif"} - {active.coord} - {tweaks.distanceKm} km</span>
+              </div>
+            </div>
+
+            <div className="loc-search">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cari wilayah atau kabupaten"/>
+              {query && <button onClick={() => setQuery("")}>Hapus</button>}
+            </div>
+
+            <div className="loc-list">
+              {filtered.length === 0 && (
+                <div className="loc-empty">
+                  <b>Wilayah tidak ditemukan</b>
+                  <span>Coba nama kabupaten lain atau pakai koordinat manual di Maps.</span>
+                </div>
+              )}
+              {filtered.map(r => (
+                <button key={r.name} className={"loc-item " + (r.name === active.name ? "is-on" : "")} onClick={() => { setRegion(r.name); setQuery(""); setTweak("locationQuery", ""); }}>
+                  <div className="loc-item-main">
+                    <b>{r.name}</b>
+                    <span>{r.status}</span>
+                  </div>
+                  <div className={"loc-rain rain-" + tweaks.rainTone}>{tweaks.rainTone === "heavy" ? "32 mm" : r.rain}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="loc-actions">
+              <button className="loc-primary" disabled={tweaks.mapsOffline} onClick={() => window.open(mapsUrl, "_blank")}>{tweaks.mapsOffline ? "Maps Offline" : "Buka Maps"}</button>
+              <button className="loc-ghost" onClick={onClose}>Gunakan wilayah ini</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===== Hero Wheel ===== */
+    function Hero({ activeMangsa, activeDay }) {
+      const active = Math.max(1, Math.min(12, Number(activeMangsa) || ACTIVE));
+      const day = Math.max(1, Math.min(26, Number(activeDay) || 1));
+      const m = MANGSA[active-1];
+      const theme = MANGSA_THEME[active] || MANGSA_THEME[ACTIVE];
+      const progress = Math.max(8, Math.min(96, (day / 26) * 100));
+      return (
+        <div className="hero-wheel mangsa-themed" style={{"--m-a": theme.a, "--m-b": theme.b, "--m-c": theme.c}}>
+          <MangsaOrnament n={active}/>
+          <div className="hw-row">
+            <div className="hw-wheel"><MangsaWheel active={active}/></div>
+            <div className="hw-info">
+              <div className="hw-eyebrow"><span className="hw-live"/>SEDANG BERLANGSUNG</div>
+              <div className="hw-name">{m.name}</div>
+              <div className="hw-name-sub">Mangsa {ROMAN[active-1]} - {m.musim}</div>
+              <div className="hw-pattern">{theme.pattern}</div>
+              <div className="hw-progress"><div className="hw-progress-fill" style={{width: `${progress}%`}}/></div>
+              <div className="hw-prog-text">
+                <span>Hari ke-{day} dari 26</span>
+                <span>{26 - day} hari lagi</span>
+              </div>
+            </div>
+          </div>
+          <div className="hw-foot">
+            <div className="hw-foot-ic"><Sprout/></div>
+            <div className="hw-foot-text">
+              <b>Saatnya semai padi</b>
+              Jendela adaptif: {m.adaptif}
+            </div>
+              <button className="hw-foot-cta" onClick={() => window.location.href = "Mangsakala-Alert.html"}>Buka <ArrR/></button>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===== Tanda Alam ticker ===== */
+    function Tanda() {
+      return (
+        <div className="tanda">
+          <div className="tanda-pill">TANDA ALAM</div>
+          <div className="tanda-text">
+            <b>Hujan pertama turun</b> - pohon randu mulai berbuah, jangkrik bersuara malam.
+          </div>
+        </div>
+      );
+    }
+
+    function MangsaSimulator({ activeMangsa, setActiveMangsa, activeDay, setActiveDay }) {
+      const active = Math.max(1, Math.min(12, Number(activeMangsa) || ACTIVE));
+      return (
+        <div className="sim-card">
+          <div className="sim-head">
+            <div>
+              <div className="sim-eyebrow">Simulasi UI</div>
+              <div className="sim-title">Atur mangsa berjalan</div>
+            </div>
+            <div className="sim-pill">{ROMAN[active - 1]} - {MANGSA[active - 1].name}</div>
+          </div>
+          <div className="sim-control">
+            <label>Mangsa aktif</label>
+            <div className="sim-stepper">
+              <button onClick={() => setActiveMangsa(Math.max(1, active - 1))}>-</button>
+              <input type="range" min="1" max="12" step="1" value={active} onChange={e => setActiveMangsa(Number(e.target.value))}/>
+              <button onClick={() => setActiveMangsa(Math.min(12, active + 1))}>+</button>
+            </div>
+          </div>
+          <div className="sim-control">
+            <label>Hari berjalan</label>
+            <div className="sim-stepper">
+              <button onClick={() => setActiveDay(Math.max(1, activeDay - 1))}>-</button>
+              <input type="range" min="1" max="26" step="1" value={activeDay} onChange={e => setActiveDay(Number(e.target.value))}/>
+              <button onClick={() => setActiveDay(Math.min(26, activeDay + 1))}>+</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===== Section head with tabs ===== */
+    function SectionHead({ tab, setTab }) {
+      return (
+        <div className="sh">
+          <div className="sh-l">
+            <div className="sh-eyebrow">Kalender Tahun Ini</div>
+            <div className="sh-title">12 Mangsa</div>
+          </div>
+          <div className="sh-tabs">
+            <button className={"sh-tab " + (tab==="ada" ? "is-on" : "")} onClick={()=>setTab("ada")}>Adaptif</button>
+            <button className={"sh-tab " + (tab==="trad" ? "is-on" : "")} onClick={()=>setTab("trad")}>Tradisional</button>
+          </div>
+        </div>
+      );
+    }
+
+    /* ===== Card ===== */
+    function MC({ m, isActive }) {
+      const geserText = m.geser === 0 ? "tepat" : `${m.geser > 0 ? "+" : ""}${m.geser} hari`;
+      return (
+        <div className={"mc2 " + (isActive ? "mc2-active" : "")}>
+          {isActive && <div className="mc2-now"><span className="ndot"/>SEDANG INI</div>}
+          <div className="mc2-top">
+            <div className="mc2-num">{ROMAN[m.n - 1]}</div>
+            <div className="mc2-musim">{m.musim}</div>
+          </div>
+          <div className="mc2-name">{m.name}</div>
+          <div className="mc2-spark">
+            <Sparkline data={SPARKS[m.n]} isActive={isActive}/>
+          </div>
+          <div className="mc2-dates">
+            <div className="mc2-d mc2-d-trad"><span className="mc2-d-dot"/><span>{m.tradisional}</span></div>
+            <div className="mc2-d mc2-d-ada"><span className="mc2-d-dot"/><span>{m.adaptif}</span></div>
+          </div>
+          <div className="mc2-shift"><ArrL/><span>{geserText}</span></div>
+        </div>
+      );
+    }
+
+    /* ===== App Nav ===== */
+    function AppNav() {
+      const items = [
+        { key: "mangsa", lbl: "Mangsa", href: "Mangsakala-Almanac.html", svg: <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></> },
+        { key: "iklim", lbl: "Iklim", href: "Mangsakala-Drift.html", svg: <><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></> },
+        { key: "alert", lbl: "Waspada", href: "Mangsakala-Alert.html", svg: <><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></> },
+      ];
+      return (
+        <div className="app-tabbar">
+          {items.map(it => (
+            <button
+              key={it.key}
+              className={"app-tab " + (it.key === "mangsa" ? "is-active" : "")}
+              onClick={() => { if (it.key !== "mangsa") window.location.href = it.href; }}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">{it.svg}</svg>
+              <span>{it.lbl}</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    /* ===== CAROUSEL ===== */
+    function Carousel({ onPick, activeMangsa }) {
+      const ref = React.useRef(null);
+      const active = Math.max(1, Math.min(12, Number(activeMangsa) || ACTIVE));
+      const [idx, setIdx] = useState(active - 1);
+
+      React.useEffect(() => {
+        // center the active card on mount
+        const el = ref.current;
+        if (!el) return;
+        const card = el.children[active - 1];
+        if (card) {
+          const off = card.offsetLeft - (el.clientWidth/2 - card.clientWidth/2);
+          el.scrollTo({ left: off, behavior: "smooth" });
+          setIdx(active - 1);
+        }
+      }, [active]);
+
+      const onScroll = () => {
+        const el = ref.current;
+        if (!el) return;
+        const center = el.scrollLeft + el.clientWidth/2;
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < el.children.length; i++) {
+          const c = el.children[i];
+          const cx = c.offsetLeft + c.clientWidth/2;
+          const d = Math.abs(cx - center);
+          if (d < bestD) { bestD = d; best = i; }
+        }
+        setIdx(best);
+      };
+
+      const scrollTo = (i) => {
+        const el = ref.current; if (!el) return;
+        const card = el.children[i]; if (!card) return;
+        const off = card.offsetLeft - (el.clientWidth/2 - card.clientWidth/2);
+        el.scrollTo({ left: off, behavior: "smooth" });
+      };
+
+      return (
+        <div className="carousel-wrap">
+          <div className="carousel" ref={ref} onScroll={onScroll}>
+            {MANGSA.map(m => (
+              <button key={m.n} className={"cc " + (m.n === active ? "cc-active" : "")} style={m.n === active ? {"--m-a": MANGSA_THEME[m.n].a, "--m-b": MANGSA_THEME[m.n].b, "--m-c": MANGSA_THEME[m.n].c} : {}} onClick={() => onPick(m)}>
+                {m.n === active && <div className="cc-now"><span className="ndot"/>SEDANG INI</div>}
+                <div className="cc-top">
+                  <div className="cc-num">{ROMAN[m.n - 1]}</div>
+                  <div className="cc-musim">{m.musim}</div>
+                </div>
+                <div className="cc-name">{m.name}</div>
+                <div className="cc-spark"><Sparkline data={SPARKS[m.n]} isActive={m.n === active}/></div>
+                <div className="cc-dates">
+                  <div className="cc-d cc-d-trad"><span className="cc-d-dot"/>{m.tradisional}</div>
+                  <div className="cc-d cc-d-ada"><span className="cc-d-dot"/>{m.adaptif}</div>
+                </div>
+                <div className="cc-shift"><ArrL/><span>{m.geser > 0 ? "+" : ""}{m.geser} hari</span></div>
+                <div className="cc-tap">Ketuk untuk detail -></div>
+              </button>
+            ))}
+          </div>
+          <div className="carousel-dots">
+            {MANGSA.map((m, i) => (
+              <button key={m.n}
+                className={"cdot " + (i === idx ? "is-on" : "") + (m.n === active ? " is-active" : "")}
+                onClick={() => scrollTo(i)} aria-label={`Mangsa ${m.n}`}/>
+            ))}
+          </div>
+          <div className="carousel-counter">
+            <span className="cc-i">{idx + 1}</span><span className="cc-sep">/</span><span>12</span>
+            <span className="cc-name-mini">- {MANGSA[idx].name}</span>
+          </div>
+        </div>
+      );
+    }
+
+    function useReveal() {
+      const ref = React.useRef(null);
+      const [shown, setShown] = React.useState(false);
+      React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.ownerDocument.body.classList.add("reveal-ready");
+        if (!("IntersectionObserver" in window)) {
+          setShown(true);
+          return;
+        }
+        const scroller = el.closest('.almanac-scroll') || el.parentElement;
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(e => {
+            if (e.isIntersecting) {
+              setShown(true);
+              io.disconnect();
+            }
+          });
+        }, { root: scroller, threshold: 0.16, rootMargin: '0px 0px -28px 0px' });
+        io.observe(el);
+        return () => io.disconnect();
+      }, []);
+      return { ref, className: "soft-reveal " + (shown ? "soft-reveal-in" : "") };
+    }
+    function Reveal({ children, delay = 0 }) {
+      const { ref, className } = useReveal();
+      return <div ref={ref} className={className} style={{transitionDelay: `${delay}ms`}}>{children}</div>;
+    }
+
+    /* ===== POPUP ===== */
+    function MangsaPopup({ m, onClose }) {
+      if (!m) return null;
+      const themeStyle = mangsaThemeStyle(m.n);
+      return (
+        <div className="pop-back" onClick={onClose} style={themeStyle}>
+          <div className="pop" onClick={e => e.stopPropagation()}>
+            <div className="pop-grab"/>
+            <div className="pop-head">
+              <div className="pop-num">{ROMAN[m.n - 1]}</div>
+              <div className="pop-titles">
+                <div className="pop-eyebrow">Mangsa ke-{m.n} - {m.musim}</div>
+                <div className="pop-name">{m.name}</div>
+              </div>
+              <button className="pop-close" onClick={onClose} aria-label="Tutup">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+              </button>
+            </div>
+            <div className="pop-tanda">
+              <div className="pop-tanda-pill">TANDA ALAM</div>
+              <div className="pop-tanda-text">{m.tanda}</div>
+            </div>
+            <div className="pop-rows">
+              <div className="pop-row">
+                <div className="pop-row-l">
+                  <span className="pop-row-dot" style={{background:"#C7B89A"}}/>
+                  <div>
+                    <div className="pop-row-lbl">Tradisional</div>
+                    <div className="pop-row-sub">Warisan leluhur</div>
+                  </div>
+                </div>
+                <div className="pop-row-val">{m.tradisional}</div>
+              </div>
+              <div className="pop-row">
+                <div className="pop-row-l">
+                  <span className="pop-row-dot pop-row-dot-theme"/>
+                  <div>
+                    <div className="pop-row-lbl">Adaptif</div>
+                    <div className="pop-row-sub">Sesuai iklim kini</div>
+                  </div>
+                </div>
+                <div className="pop-row-val em">{m.adaptif}</div>
+              </div>
+              <div className="pop-row">
+                <div className="pop-row-l">
+                  <span className="pop-row-dot pop-row-dot-accent"/>
+                  <div>
+                    <div className="pop-row-lbl">Pergeseran</div>
+                    <div className="pop-row-sub">vs kalender warisan</div>
+                  </div>
+                </div>
+                <div className="pop-row-val">{m.geser > 0 ? "+" : ""}{m.geser} hari</div>
+              </div>
+            </div>
+            <div className="pop-spark-card">
+              <div className="pop-spark-head">
+                <span>Drift 9 tahun terakhir</span>
+                <span className="pop-spark-em">+5,2 hari/dekade</span>
+              </div>
+              <div className="pop-spark-svg">
+                <Sparkline data={SPARKS[m.n]} isActive={false}/>
+              </div>
+            </div>
+            <div className="pop-actions">
+              <button className="pop-btn-primary" onClick={() => window.location.href = "Mangsakala-Alert.html"}>Cek peringatan</button>
+              <button className="pop-btn-ghost" onClick={() => window.location.href = "Mangsakala-Drift.html"}>Lihat iklim</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const [activeMangsaUi, setActiveMangsaUi] = useState(() => getStoredActiveMangsa(tweaks.activeMangsa));
+      const [activeDayUi, setActiveDayUi] = useState(tweaks.activeDay);
+      const [tab, setTab] = useState("ada");
+      const [picked, setPicked] = useState(null);
+      const [notifOpen, setNotifOpen] = useState(false);
+      const [crop, setCrop] = useState("padi");
+      const [locOpen, setLocOpen] = useState(false);
+      const [region, setRegion] = useState("Sleman, DIY");
+      React.useEffect(() => {
+        setStoredActiveMangsa(activeMangsaUi);
+      }, [activeMangsaUi]);
+      const appTheme = mangsaThemeStyle(activeMangsaUi);
+      return (
+        <div className="screen mangsa-app-theme" data-screen-label="Beranda Almanac" style={appTheme}>
+          <div className="paper-grain"/>
+          <div className="almanac-scroll" style={{flex: 1, overflow: "auto"}}>
+            <Reveal delay={0}><TopBar onNotifOpen={() => setNotifOpen(true)} onLocationOpen={() => setLocOpen(true)} hasNotif={true} region={region}/></Reveal>
+            <Reveal delay={80}><Hero activeMangsa={activeMangsaUi} activeDay={activeDayUi}/></Reveal>
+            <Reveal delay={110}><MangsaSimulator activeMangsa={activeMangsaUi} setActiveMangsa={setActiveMangsaUi} activeDay={activeDayUi} setActiveDay={setActiveDayUi}/></Reveal>
+            <Reveal delay={140}><Tanda/></Reveal>
+            <Reveal delay={190}><SectionHead tab={tab} setTab={setTab}/></Reveal>
+            <Reveal delay={240}><Carousel onPick={setPicked} activeMangsa={activeMangsaUi}/></Reveal>
+            <div style={{height: 24}}/>
+          </div>
+          <AppNav/>
+          <MangsaPopup m={picked} onClose={() => setPicked(null)}/>
+          <NotificationCenter open={notifOpen} onClose={() => setNotifOpen(false)} crop={crop} setCrop={setCrop}/>
+          <LocationPanel open={locOpen || tweaks.autoOpenLocation} onClose={() => { setLocOpen(false); setTweak("autoOpenLocation", false); }} region={region} setRegion={setRegion} tweaks={tweaks} setTweak={setTweak}/>
+          <TweaksPanel title="Location Tweaks">
+            <TweakSection title="Location search" />
+            <TweakText label="Search query" value={tweaks.locationQuery} onChange={v => setTweak("locationQuery", v)} />
+            <TweakToggle label="Auto open location" value={tweaks.autoOpenLocation} onChange={v => setTweak("autoOpenLocation", v)} />
+            <TweakToggle label="Force no results" value={tweaks.forceNoResults} onChange={v => setTweak("forceNoResults", v)} />
+            <TweakSection title="Maps states" />
+            <TweakToggle label="Maps offline" value={tweaks.mapsOffline} onChange={v => setTweak("mapsOffline", v)} />
+            <TweakSlider label="Distance" value={tweaks.distanceKm} min={0} max={35} step={1} unit="km" onChange={v => setTweak("distanceKm", v)} />
+            <TweakRadio label="Rain tone" value={tweaks.rainTone} options={[
+              {value: "normal", label: "Normal"},
+              {value: "heavy", label: "Heavy"},
+            ]} onChange={v => setTweak("rainTone", v)} />
+            <TweakSection title="Active mangsa" />
+            <TweakSlider label="Mangsa aktif" value={activeMangsaUi} min={1} max={12} step={1} onChange={v => { setActiveMangsaUi(v); setTweak("activeMangsa", v); }} />
+            <TweakSlider label="Hari berjalan" value={activeDayUi} min={1} max={26} step={1} onChange={v => { setActiveDayUi(v); setTweak("activeDay", v); }} />
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    function Mounted() {
+      return <IOSDevice width={402} height={874}><App/></IOSDevice>;
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Mounted/>);
+  </script>
+</body>
+</html>
