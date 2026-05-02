@@ -44,7 +44,15 @@
     const { useState } = React;
 
     // ====== DATA ======
-    const MANGSA = [
+    /* ── API connection ── */
+    const API_BASE = window.API_BASE || "http://localhost:8000/api";
+    const _IDM = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+    const _IDM_FULL = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+    const _MUSIM = {1:"Mareng",2:"Mareng",3:"Mareng",4:"Labuh",5:"Labuh",6:"Labuh",7:"Rendheng",8:"Rendheng",9:"Rendheng",10:"Mareng",11:"Mareng",12:"Mareng"};
+    function _fd(s) { const p = s.split("-"); return `${parseInt(p[2])} ${_IDM[parseInt(p[1])-1]}`; }
+    let _plant = { startDay: 28, startMo: "Oktober", endDay: 14, endMo: "November", days: 18 };
+
+    let MANGSA = [
       { n: 1,  name: "Kasa",      tradisional: "22 Jun – 1 Agu",  adaptif: "18 Jun – 28 Jul",  geser: -4,  musim: "Mareng" },
       { n: 2,  name: "Karo",      tradisional: "2 Agu – 24 Agu",  adaptif: "29 Jul – 21 Agu",  geser: -3,  musim: "Mareng" },
       { n: 3,  name: "Katelu",    tradisional: "25 Agu – 17 Sep", adaptif: "22 Agu – 13 Sep",  geser: -4,  musim: "Mareng" },
@@ -179,20 +187,20 @@
           <div className="hero-dates">
             <div className="date-block">
               <div className="date-mini">Mulai</div>
-              <div className="date-day">28</div>
-              <div className="date-mo">Oktober</div>
+              <div className="date-day">{_plant.startDay}</div>
+              <div className="date-mo">{_plant.startMo}</div>
             </div>
             <div className="hero-arrow"><Ic.Arr/></div>
             <div className="date-block">
               <div className="date-mini">Sampai</div>
-              <div className="date-day">14</div>
-              <div className="date-mo">November</div>
+              <div className="date-day">{_plant.endDay}</div>
+              <div className="date-mo">{_plant.endMo}</div>
             </div>
           </div>
 
           <div className="hero-foot">
             <div className="foot-stat">
-              <div className="foot-num">18</div>
+              <div className="foot-num">{_plant.days}</div>
               <div className="foot-lbl">hari</div>
             </div>
             <div className="foot-divider"/>
@@ -259,6 +267,28 @@
     function App() {
       const [region, setRegion] = useState("Sleman, DIY");
       const [regionOpen, setRegionOpen] = useState(false);
+      const [_apiVer, _setApiVer] = React.useState(0);
+      React.useEffect(() => {
+        fetch(`${API_BASE}/calendar?year=${new Date().getFullYear()}&region=kebumen`)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(data => {
+            const mapped = data.all_mangsa.map(m => ({
+              n: m.number, name: m.name,
+              tradisional: `${_fd(m.traditional_start)} – ${_fd(m.traditional_end)}`,
+              adaptif: `${_fd(m.adaptive_start)} – ${_fd(m.adaptive_end)}`,
+              geser: m.shift_days,
+              musim: _MUSIM[m.number] || "Labuh",
+            }));
+            MANGSA.length = 0;
+            MANGSA.push(...mapped);
+            const pw = data.recommended_planting.primary_window;
+            const s = pw.start.split("-"), e = pw.end.split("-");
+            const d1 = new Date(pw.start), d2 = new Date(pw.end);
+            _plant = { startDay: parseInt(s[2]), startMo: _IDM_FULL[parseInt(s[1])-1], endDay: parseInt(e[2]), endMo: _IDM_FULL[parseInt(e[1])-1], days: Math.round((d2-d1)/86400000)+1 };
+            _setApiVer(v => v + 1);
+          })
+          .catch(() => {});
+      }, []);
 
       return (
         <div className="screen" data-screen-label="Beranda Mangsakala">

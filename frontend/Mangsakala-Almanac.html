@@ -41,7 +41,7 @@
       "activeDay": 16
     }/*EDITMODE-END*/;
 
-    const MANGSA = [
+    let MANGSA = [
       { n: 1,  name: "Kasa",      tradisional: "22 Jun - 1 Agu",  adaptif: "18 Jun - 28 Jul",  geser: -4,  musim: "Mareng",   tanda: "Daun jatuh, tanah retak" },
       { n: 2,  name: "Karo",      tradisional: "2 Agu - 24 Agu",  adaptif: "29 Jul - 21 Agu",  geser: -3,  musim: "Mareng",   tanda: "Pohon randu berbuah" },
       { n: 3,  name: "Katelu",    tradisional: "25 Agu - 17 Sep", adaptif: "22 Agu - 13 Sep",  geser: -4,  musim: "Mareng",   tanda: "Umbi mulai tumbuh" },
@@ -58,6 +58,12 @@
     const ACTIVE = 5;
     const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
     /* MANGSA_THEME + MangsaOrnament come from mangsa-shared.jsx */
+
+    /* ── API connection ── */
+    const API_BASE = window.API_BASE || "http://localhost:8000/api";
+    const _IDM = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+    const _MUSIM = {1:"Mareng",2:"Mareng",3:"Mareng",4:"Labuh",5:"Labuh",6:"Labuh",7:"Rendheng",8:"Rendheng",9:"Rendheng",10:"Mareng",11:"Mareng",12:"Mareng"};
+    function _fd(s) { const p = s.split("-"); return `${parseInt(p[2])} ${_IDM[parseInt(p[1])-1]}`; }
 
     /* tiny seeded sparkline values per mangsa (drift trend) */
     const SPARKS = {
@@ -720,6 +726,30 @@
       React.useEffect(() => {
         setStoredActiveMangsa(activeMangsaUi);
       }, [activeMangsaUi]);
+
+      const [_apiVer, _setApiVer] = React.useState(0);
+      React.useEffect(() => {
+        const tanda = {};
+        MANGSA.forEach(m => { tanda[m.n] = m.tanda; });
+        fetch(`${API_BASE}/calendar?year=${new Date().getFullYear()}&region=kebumen`)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(data => {
+            const mapped = data.all_mangsa.map(m => ({
+              n: m.number, name: m.name,
+              tradisional: `${_fd(m.traditional_start)} - ${_fd(m.traditional_end)}`,
+              adaptif: `${_fd(m.adaptive_start)} - ${_fd(m.adaptive_end)}`,
+              geser: m.shift_days,
+              musim: _MUSIM[m.number] || "Labuh",
+              tanda: tanda[m.number] || "",
+            }));
+            MANGSA.length = 0;
+            MANGSA.push(...mapped);
+            setActiveMangsaUi(data.current_mangsa.number);
+            _setApiVer(v => v + 1);
+          })
+          .catch(() => {});
+      }, []);
+
       const appTheme = mangsaThemeStyle(activeMangsaUi);
       return (
         <div className="screen mangsa-app-theme" data-screen-label="Beranda Almanac" style={appTheme}>

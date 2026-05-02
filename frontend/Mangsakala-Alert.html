@@ -37,6 +37,13 @@
     const { useState } = React;
     const ACTIVE_MANGSA = 5;
 
+    /* ── API connection ── */
+    const API_BASE = window.API_BASE || "http://localhost:8000/api";
+    const _IDM = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+    function _fd(s) { const p = s.split("-"); return `${parseInt(p[2])} ${_IDM[parseInt(p[1])-1]}`; }
+    const _ENSO_LBL = {"el_nino_weak":"El Nino Lemah","el_nino_moderate":"El Nino Sedang","el_nino_strong":"El Nino Kuat","la_nina_weak":"La Nina Lemah","la_nina_moderate":"La Nina Sedang","la_nina_strong":"La Nina Kuat","neutral":"Netral"};
+    const _ENSO_SUB = {"el_nino_weak":"Fase pemanasan permukaan laut lemah","el_nino_moderate":"Fase pemanasan permukaan laut sedang","el_nino_strong":"Fase pemanasan permukaan laut kuat","la_nina_weak":"Fase pendinginan permukaan laut lemah","la_nina_moderate":"Fase pendinginan permukaan laut sedang","la_nina_strong":"Fase pendinginan permukaan laut kuat","neutral":"Kondisi ENSO normal"};
+
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
       "severity": "high",
       "days": 13,
@@ -462,6 +469,32 @@
       const toggleCheck = (i) => setChecked(prev => ({...prev, [i]: !prev[i]}));
       const activeMangsa = getStoredActiveMangsa(ACTIVE_MANGSA);
       const appTheme = mangsaThemeStyle(activeMangsa);
+
+      React.useEffect(() => {
+        fetch(`${API_BASE}/alert?year=${new Date().getFullYear()}&region=kebumen&threshold_days=14`)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(data => {
+            const phase = data.enso_context.current_phase;
+            const days = Math.abs(data.shift_days);
+            const now = new Date();
+            setTweak({
+              severity: data.severity === "none" ? "medium" : data.severity,
+              days,
+              onset: _fd(data.predicted_onset_date),
+              bodyText: data.message,
+              rec1: data.recommendations[0] || "",
+              rec2: data.recommendations[1] || "",
+              rec3: data.recommendations[2] || "",
+              ensoPhase: _ENSO_LBL[phase] || phase,
+              ensoSub: _ENSO_SUB[phase] || "",
+              oni: data.enso_context.oni_value,
+              ensoSource: `NOAA · ${now.toLocaleDateString("id-ID",{month:"short",year:"numeric"})}`,
+              implMin: Math.max(0, days - 5),
+              implMax: days + 5,
+            });
+          })
+          .catch(() => {});
+      }, []);
 
       const handleSave = () => {
         const alertData = { ...t, severity, savedAt: new Date().toISOString() };

@@ -37,9 +37,13 @@
     const { useState } = React;
     const ACTIVE_MANGSA = 5;
 
+    /* ── API connection ── */
+    const API_BASE = window.API_BASE || "http://localhost:8000/api";
+    let _driftShift = 16;
+
     // ===== DATA: Drift 1995-2025 (days late vs Pranata Mangsa onset Kapat) =====
     // E = El Nino, L = La Nina, N = Neutral. Plausible trend: +14 by 2020s.
-    const DRIFT = [
+    let DRIFT = [
       [1995, -2,  "N"], [1996,  1,  "L"], [1997, 18, "E"], [1998, -3, "L"],
       [1999, -5,  "L"], [2000, -1, "L"], [2001,  3, "N"], [2002, 12, "E"],
       [2003,  5,  "N"], [2004,  9, "E"], [2005,  4, "N"], [2006, 11, "E"],
@@ -149,12 +153,12 @@
             <div className="alert-ico"><Tri s={22}/></div>
             <div className="alert-titles">
               <div className="alert-eyebrow">Atensi Musim</div>
-              <div className="alert-title">Onset hujan bergeser sekitar 16 hari</div>
+              <div className="alert-title">Onset hujan bergeser sekitar {_driftShift} hari</div>
             </div>
             <div className="alert-badge">Waspada</div>
           </div>
           <div className="alert-body">
-            Onset hujan mundur <b>16 hari</b>. Untuk sekarang, semai sebaiknya ditahan dulu.
+            Onset hujan mundur <b>{_driftShift} hari</b>. Untuk sekarang, semai sebaiknya ditahan dulu.
           </div>
           <ul className="alert-list">
             <li><span className="bul"/>Tunda semai 1-2 minggu.</li>
@@ -789,6 +793,24 @@
     function App() {
       const [pickedSheet, setPickedSheet] = useState(null);
       const [activeStrip, setActiveStrip] = useState(null);
+      const [_apiVer, _setApiVer] = React.useState(0);
+      React.useEffect(() => {
+        Promise.all([
+          fetch(`${API_BASE}/drift?region=kebumen&start_year=1995&end_year=2025`).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`${API_BASE}/alert?year=${new Date().getFullYear()}&region=kebumen`).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]).then(([driftData, alertData]) => {
+          if (driftData) {
+            const mapped = driftData.data.map(d => [
+              d.year, d.shift_days,
+              d.enso_phase.startsWith("el_nino") ? "E" : d.enso_phase.startsWith("la_nina") ? "L" : "N"
+            ]);
+            DRIFT.length = 0;
+            DRIFT.push(...mapped);
+          }
+          if (alertData) _driftShift = Math.abs(alertData.shift_days);
+          _setApiVer(v => v + 1);
+        });
+      }, []);
       const activeMangsa = getStoredActiveMangsa(ACTIVE_MANGSA);
       const appTheme = mangsaThemeStyle(activeMangsa);
       const info = MANGSA_INFO[activeMangsa] || MANGSA_INFO[ACTIVE_MANGSA];
