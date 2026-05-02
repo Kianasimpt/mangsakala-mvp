@@ -68,7 +68,7 @@ graph LR
 ### Cara Cepat (Windows)
 
 ```powershell
-git clone https://github.com/<username>/mangsakala-mvp.git
+git clone https://github.com/Kianasimpt/mangsakala-mvp.git
 cd mangsakala-mvp
 
 # Install dependencies (sekali saja)
