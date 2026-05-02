@@ -15,6 +15,7 @@
   }
   .stage { width: 402px; height: 874px; flex-shrink: 0; }
   .screen { background: #FAF1E2; }
+  @keyframes _ms-spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -178,8 +179,11 @@
       );
     }
 
+    const _storedName = () => localStorage.getItem("mangsakala_user_name") || "Pak Wahyudi";
+
     /* ===== TopBar ===== */
     function TopBar({ onNotifOpen, onLocationOpen, hasNotif, region }) {
+      const [userName, setUserName] = React.useState(_storedName);
       return (
         <div className="tb">
           <svg className="tb-stars" viewBox="0 0 360 80" preserveAspectRatio="none">
@@ -193,8 +197,8 @@
           </svg>
           <div className="tb-row">
             <div className="tb-greet">
-              <div className="tb-hello">Sugeng enjing,</div>
-              <div className="tb-name">Pak <b>Wahyudi</b></div>
+              <div className="tb-hello">{new Date().getHours() < 12 ? "Sugeng enjing," : new Date().getHours() < 18 ? "Sugeng siang," : "Sugeng dalu,"}</div>
+              <div className="tb-name" title="Ketuk untuk ganti nama" style={{cursor:"pointer"}} onClick={() => { const n = prompt("Nama Anda:", userName); if (n && n.trim()) { localStorage.setItem("mangsakala_user_name", n.trim()); setUserName(n.trim()); } }}><b>{userName}</b></div>
             </div>
             <div className="tb-actions">
               <button className="tb-btn" aria-label="Lokasi" onClick={onLocationOpen}><Pin/></button>
@@ -321,12 +325,12 @@
     function LocationPanel({ open, onClose, region, setRegion, tweaks, setTweak }) {
       const [query, setQuery] = useState("");
       const regions = [
-        { name: "Sleman, DIY", coord: "-7.7325, 110.4024", rain: "12 mm", status: "Jendela padi dekat", map: [50, 42] },
-        { name: "Bantul, DIY", coord: "-7.8754, 110.3250", rain: "18 mm", status: "Tanah mulai lembab", map: [44, 63] },
-        { name: "Klaten, Jateng", coord: "-7.7059, 110.6066", rain: "9 mm", status: "Pantau 7 hari", map: [67, 45] },
-        { name: "Magelang, Jateng", coord: "-7.4797, 110.2177", rain: "15 mm", status: "Hujan ringan stabil", map: [36, 30] },
-        { name: "Kebumen, Jateng", coord: "-7.6686, 109.6526", rain: "7 mm", status: "Onset mundur", map: [24, 58] },
-        { name: "Karanganyar, Jateng", coord: "-7.5961, 110.9508", rain: "14 mm", status: "Pantau irigasi", map: [77, 36] },
+        { name: "Kebumen, Jateng",    coord: "-7.6686, 109.6526", rain: "7 mm",  status: "Data real · ML aktif",       map: [24, 58], available: true },
+        { name: "Sleman, DIY",        coord: "-7.7325, 110.4024", rain: "—",     status: "Segera hadir",                map: [50, 42], available: false },
+        { name: "Bantul, DIY",        coord: "-7.8754, 110.3250", rain: "—",     status: "Segera hadir",                map: [44, 63], available: false },
+        { name: "Klaten, Jateng",     coord: "-7.7059, 110.6066", rain: "—",     status: "Segera hadir",                map: [67, 45], available: false },
+        { name: "Magelang, Jateng",   coord: "-7.4797, 110.2177", rain: "—",     status: "Segera hadir",                map: [36, 30], available: false },
+        { name: "Karanganyar, Jateng",coord: "-7.5961, 110.9508", rain: "—",     status: "Segera hadir",                map: [77, 36], available: false },
       ];
       const effectiveQuery = query || tweaks.locationQuery || "";
       const filtered = tweaks.forceNoResults ? [] : regions.filter(r => r.name.toLowerCase().includes(effectiveQuery.toLowerCase()));
@@ -376,12 +380,15 @@
                 </div>
               )}
               {filtered.map(r => (
-                <button key={r.name} className={"loc-item " + (r.name === active.name ? "is-on" : "")} onClick={() => { setRegion(r.name); setQuery(""); setTweak("locationQuery", ""); }}>
+                <button key={r.name}
+                  className={"loc-item " + (r.name === active.name ? "is-on" : "")}
+                  style={r.available === false ? {opacity:0.5,cursor:"default"} : {}}
+                  onClick={() => { if (r.available !== false) { setRegion(r.name); setQuery(""); setTweak("locationQuery", ""); } }}>
                   <div className="loc-item-main">
                     <b>{r.name}</b>
                     <span>{r.status}</span>
                   </div>
-                  <div className={"loc-rain rain-" + tweaks.rainTone}>{tweaks.rainTone === "heavy" ? "32 mm" : r.rain}</div>
+                  <div className={"loc-rain rain-" + tweaks.rainTone}>{r.available === false ? "—" : (tweaks.rainTone === "heavy" ? "32 mm" : r.rain)}</div>
                 </button>
               ))}
             </div>
@@ -722,12 +729,14 @@
       const [notifOpen, setNotifOpen] = useState(false);
       const [crop, setCrop] = useState("padi");
       const [locOpen, setLocOpen] = useState(false);
-      const [region, setRegion] = useState("Sleman, DIY");
+      const [region, setRegion] = useState("Kebumen, Jateng");
       React.useEffect(() => {
         setStoredActiveMangsa(activeMangsaUi);
       }, [activeMangsaUi]);
 
       const [_apiVer, _setApiVer] = React.useState(0);
+      const [_loading, _setLoading] = React.useState(true);
+      const [_offline, _setOffline] = React.useState(false);
       React.useEffect(() => {
         const tanda = {};
         MANGSA.forEach(m => { tanda[m.n] = m.tanda; });
@@ -745,14 +754,20 @@
             MANGSA.length = 0;
             MANGSA.push(...mapped);
             setActiveMangsaUi(data.current_mangsa.number);
+            _setLoading(false);
             _setApiVer(v => v + 1);
           })
-          .catch(() => {});
+          .catch(() => { _setLoading(false); _setOffline(true); });
       }, []);
 
       const appTheme = mangsaThemeStyle(activeMangsaUi);
       return (
         <div className="screen mangsa-app-theme" data-screen-label="Beranda Almanac" style={appTheme}>
+          {_loading && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(250,241,226,0.88)",zIndex:200,borderRadius:"inherit"}}><div style={{width:36,height:36,border:"3px solid #E5D2B3",borderTopColor:"#C8553D",borderRadius:"50%",animation:"_ms-spin 0.75s linear infinite"}}/></div>}
+          {_offline && <div style={{position:"absolute",bottom:80,left:12,right:12,background:"#2A1F12",color:"#F5E6D3",borderRadius:10,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+            <span>Data lokal ditampilkan — backend tidak terjangkau</span>
+            <button onClick={() => _setOffline(false)} style={{background:"none",border:"none",color:"#C8553D",fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>}
           <div className="paper-grain"/>
           <div className="almanac-scroll" style={{flex: 1, overflow: "auto"}}>
             <Reveal delay={0}><TopBar onNotifOpen={() => setNotifOpen(true)} onLocationOpen={() => setLocOpen(true)} hasNotif={true} region={region}/></Reveal>

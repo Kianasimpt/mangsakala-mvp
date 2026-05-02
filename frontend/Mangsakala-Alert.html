@@ -21,6 +21,7 @@
   .ab-body { font-size: 13px; line-height: 1.5; }
   .ab-list li { font-size: 12.5px; line-height: 1.45; }
   .ec-phase-name { font-size: 16px; }
+  @keyframes _ms-spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -466,6 +467,8 @@
       const [checked, setChecked] = useState({});
       const [saved, setSaved] = useState(() => !!localStorage.getItem('mangsakala_saved_alert'));
       const [shared, setShared] = useState(false);
+      const [_loading, _setLoading] = React.useState(true);
+      const [_offline, _setOffline] = React.useState(false);
       const toggleCheck = (i) => setChecked(prev => ({...prev, [i]: !prev[i]}));
       const activeMangsa = getStoredActiveMangsa(ACTIVE_MANGSA);
       const appTheme = mangsaThemeStyle(activeMangsa);
@@ -492,8 +495,9 @@
               implMin: Math.max(0, days - 5),
               implMax: days + 5,
             });
+            _setLoading(false);
           })
-          .catch(() => {});
+          .catch(() => { _setLoading(false); _setOffline(true); });
       }, []);
 
       const handleSave = () => {
@@ -517,6 +521,11 @@
 
       return (
         <div className="screen mangsa-app-theme" data-screen-label="Pusat Peringatan" style={appTheme}>
+          {_loading && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(250,241,226,0.88)",zIndex:200,borderRadius:"inherit"}}><div style={{width:36,height:36,border:"3px solid #E5D2B3",borderTopColor:"#C8553D",borderRadius:"50%",animation:"_ms-spin 0.75s linear infinite"}}/></div>}
+          {_offline && <div style={{position:"absolute",bottom:80,left:12,right:12,background:"#2A1F12",color:"#F5E6D3",borderRadius:10,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+            <span>Data lokal ditampilkan — backend tidak terjangkau</span>
+            <button onClick={() => _setOffline(false)} style={{background:"none",border:"none",color:"#C8553D",fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>}
           <TopBar activeMangsa={activeMangsa} severity={severity} days={t.days} onSave={handleSave} saved={saved}/>
           <div className="body body-alert">
             <Reveal delay={0}><MangsaActiveStrip n={activeMangsa} label="Mangsa Berjalan"/></Reveal>

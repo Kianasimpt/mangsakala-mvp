@@ -29,6 +29,7 @@
     padding-top: 60px; /* clear the dynamic island / status bar */
     padding-bottom: 34px; /* clear home indicator */
   }
+  @keyframes _ms-spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -68,12 +69,12 @@
     ];
     const ACTIVE_MANGSA = 5;
     const REGIONS = [
-      "Sleman, DIY",
-      "Klaten, Jateng",
-      "Bantul, DIY",
-      "Magelang, Jateng",
-      "Karanganyar, Jateng",
-      "Boyolali, Jateng",
+      { label: "Kebumen, Jateng", available: true },
+      { label: "Sleman, DIY",       available: false },
+      { label: "Klaten, Jateng",    available: false },
+      { label: "Bantul, DIY",       available: false },
+      { label: "Magelang, Jateng",  available: false },
+      { label: "Karanganyar, Jateng", available: false },
     ];
     const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
 
@@ -150,10 +151,13 @@
           {regionOpen && (
             <div className="region-menu">
               {REGIONS.map(r => (
-                <button key={r} className={"region-item " + (r === region ? "is-active" : "")}
-                  onClick={() => { setRegion(r); setRegionOpen(false); }}>
-                  <span>{r}</span>
-                  {r === region && <Ic.Check/>}
+                <button key={r.label}
+                  className={"region-item " + (r.label === region ? "is-active" : "")}
+                  style={r.available ? {} : {opacity:0.5,cursor:"default"}}
+                  onClick={() => { if (r.available) { setRegion(r.label); setRegionOpen(false); } }}>
+                  <span>{r.label}</span>
+                  {r.label === region && <Ic.Check/>}
+                  {!r.available && <span style={{fontSize:10,color:"#8A7657",marginLeft:"auto",flexShrink:0}}>Segera hadir</span>}
                 </button>
               ))}
             </div>
@@ -265,9 +269,11 @@
 
     // ====== APP ======
     function App() {
-      const [region, setRegion] = useState("Sleman, DIY");
+      const [region, setRegion] = useState("Kebumen, Jateng");
       const [regionOpen, setRegionOpen] = useState(false);
       const [_apiVer, _setApiVer] = React.useState(0);
+      const [_loading, _setLoading] = React.useState(true);
+      const [_offline, _setOffline] = React.useState(false);
       React.useEffect(() => {
         fetch(`${API_BASE}/calendar?year=${new Date().getFullYear()}&region=kebumen`)
           .then(r => r.ok ? r.json() : Promise.reject())
@@ -285,13 +291,19 @@
             const s = pw.start.split("-"), e = pw.end.split("-");
             const d1 = new Date(pw.start), d2 = new Date(pw.end);
             _plant = { startDay: parseInt(s[2]), startMo: _IDM_FULL[parseInt(s[1])-1], endDay: parseInt(e[2]), endMo: _IDM_FULL[parseInt(e[1])-1], days: Math.round((d2-d1)/86400000)+1 };
+            _setLoading(false);
             _setApiVer(v => v + 1);
           })
-          .catch(() => {});
+          .catch(() => { _setLoading(false); _setOffline(true); });
       }, []);
 
       return (
         <div className="screen" data-screen-label="Beranda Mangsakala">
+          {_loading && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(250,241,226,0.88)",zIndex:200,borderRadius:"inherit"}}><div style={{width:36,height:36,border:"3px solid #E5D2B3",borderTopColor:"#C8553D",borderRadius:"50%",animation:"_ms-spin 0.75s linear infinite"}}/></div>}
+          {_offline && <div style={{position:"absolute",bottom:80,left:12,right:12,background:"#2A1F12",color:"#F5E6D3",borderRadius:10,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+            <span>Data lokal ditampilkan — backend tidak terjangkau</span>
+            <button onClick={() => _setOffline(false)} style={{background:"none",border:"none",color:"#C8553D",fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>}
           <Header region={region} setRegion={setRegion} regionOpen={regionOpen} setRegionOpen={setRegionOpen}/>
           <div className="body">
             <HeroCard/>

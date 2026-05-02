@@ -22,6 +22,7 @@
     from { opacity: 0; transform: translateX(-6px); }
     to   { opacity: 1; transform: translateX(0); }
   }
+  @keyframes _ms-spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -794,6 +795,8 @@
       const [pickedSheet, setPickedSheet] = useState(null);
       const [activeStrip, setActiveStrip] = useState(null);
       const [_apiVer, _setApiVer] = React.useState(0);
+      const [_loading, _setLoading] = React.useState(true);
+      const [_offline, _setOffline] = React.useState(false);
       React.useEffect(() => {
         Promise.all([
           fetch(`${API_BASE}/drift?region=kebumen&start_year=1995&end_year=2025`).then(r => r.ok ? r.json() : null).catch(() => null),
@@ -808,8 +811,9 @@
             DRIFT.push(...mapped);
           }
           if (alertData) _driftShift = Math.abs(alertData.shift_days);
+          _setLoading(false);
           _setApiVer(v => v + 1);
-        });
+        }).catch(() => { _setLoading(false); _setOffline(true); });
       }, []);
       const activeMangsa = getStoredActiveMangsa(ACTIVE_MANGSA);
       const appTheme = mangsaThemeStyle(activeMangsa);
@@ -937,6 +941,11 @@
       ];
       return (
         <div className="screen mangsa-app-theme" data-screen-label="Drift Musim Hujan" style={appTheme}>
+          {_loading && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(250,241,226,0.88)",zIndex:200,borderRadius:"inherit"}}><div style={{width:36,height:36,border:"3px solid #E5D2B3",borderTopColor:"#C8553D",borderRadius:"50%",animation:"_ms-spin 0.75s linear infinite"}}/></div>}
+          {_offline && <div style={{position:"absolute",bottom:80,left:12,right:12,background:"#2A1F12",color:"#F5E6D3",borderRadius:10,padding:"10px 14px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"space-between",zIndex:300,boxShadow:"0 4px 16px rgba(0,0,0,0.4)"}}>
+            <span>Data lokal ditampilkan — backend tidak terjangkau</span>
+            <button onClick={() => _setOffline(false)} style={{background:"none",border:"none",color:"#C8553D",fontSize:16,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>}
           <TopBar activeMangsa={activeMangsa}/>
           <div className="body body-drift">
             <Reveal delay={0} threshold={0.04} rootMargin="0px 0px -4% 0px"><MangsaActiveStrip n={activeMangsa} label="Mangsa Berjalan"/></Reveal>
