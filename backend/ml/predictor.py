@@ -7,7 +7,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_ROOT = Path(__file__).parent.parent.parent
+_ROOT = Path(__file__).parent.parent
 MODEL_PATH = _ROOT / "model" / "onset_predictor.pkl"
 ONI_PATH = _ROOT / "data" / "raw" / "oni_monthly_raw.csv"
 RAINFALL_PATH = _ROOT / "data" / "raw" / "kebumen_chirps_daily_1995_2025.csv"
